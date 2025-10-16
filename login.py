@@ -16,6 +16,17 @@ class LoginModule:
         self.root.geometry("800x440")
         self.root.configure(bg="#FFFFFF")
         self.root.resizable(False, False)
+        # Center the window on screen
+        try:
+            self.root.update_idletasks()
+            width, height = 800, 440
+            screen_width = self.root.winfo_screenwidth()
+            screen_height = self.root.winfo_screenheight()
+            x = (screen_width - width) // 2
+            y = (screen_height - height) // 2
+            self.root.geometry(f"{width}x{height}+{x}+{y}")
+        except Exception:
+            pass
 
         # Assets path from provided layout
         self.OUTPUT_PATH = Path(__file__).parent
@@ -148,7 +159,16 @@ class LoginModule:
         messagebox.showinfo("Forgot Password", "Please contact your administrator to reset your password.")
 
     def on_signup(self):
-        messagebox.showinfo("Sign Up", "Account creation is managed by administrators.")
+        try:
+            # Close the current login window before opening signup
+            self.root.destroy()
+        except Exception:
+            pass
+        try:
+            # Importing will execute signup.py which initializes its own Tk window
+            __import__('signup')
+        except Exception as e:
+            messagebox.showerror("Error", f"Unable to open Sign Up: {str(e)}")
 
     def handle_login(self):
         username = self.username_entry.get().strip()

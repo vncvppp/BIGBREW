@@ -36,6 +36,17 @@ class BaseDashboard:
         self.window.title(f"BigBrew - {self.get_role_title()}")
         self.window.geometry("1000x700")
         self.window.resizable(True, True)
+        # Center the dashboard on screen
+        try:
+            self.window.update_idletasks()
+            width, height = 1000, 700
+            screen_width = self.window.winfo_screenwidth()
+            screen_height = self.window.winfo_screenheight()
+            x = (screen_width - width) // 2
+            y = (screen_height - height) // 2
+            self.window.geometry(f"{width}x{height}+{x}+{y}")
+        except Exception:
+            pass
         
         # Color scheme
         self.bg_color = "#4A3728"

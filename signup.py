@@ -6,6 +6,8 @@
 from pathlib import Path
 from tkinter import Tk, Canvas, Entry, Text, Button, PhotoImage, messagebox, simpledialog
 import os
+import sys
+import subprocess
 import smtplib
 import ssl
 import random
@@ -229,6 +231,16 @@ window = Tk()
 
 window.geometry("800x440")
 window.configure(bg = "#FFFFFF")
+try:
+    window.update_idletasks()
+    width, height = 800, 440
+    screen_width = window.winfo_screenwidth()
+    screen_height = window.winfo_screenheight()
+    x = (screen_width - width) // 2
+    y = (screen_height - height) // 2
+    window.geometry(f"{width}x{height}+{x}+{y}")
+except Exception:
+    pass
 
 
 canvas = Canvas(
@@ -261,7 +273,8 @@ entry_pass = Entry(
     bd=0,
     bg="#FFF8E7",
     fg="#000716",
-    highlightthickness=0
+    highlightthickness=0,
+    show='*'
 )
 entry_pass.place(
     x=63.0,
@@ -301,7 +314,8 @@ entry_confirmpass = Entry(
     bd=0,
     bg="#FFF8E7",
     fg="#000716",
-    highlightthickness=0
+    highlightthickness=0,
+    show='*'
 )
 entry_confirmpass.place(
     x=64.0,
@@ -310,32 +324,36 @@ entry_confirmpass.place(
     height=38.0
 )
 
-button_image_1 = PhotoImage(
+def toggle_entry_password(target_entry):
+    current = target_entry.cget('show')
+    target_entry.config(show='' if current == '*' else '*')
+
+button_image_eye_pass = PhotoImage(
     file=relative_to_assets("button_eye.png"))
-button_eye = Button(
-    image=button_image_1,
+button_eye_pass = Button(
+    image=button_image_eye_pass,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_eye clicked"),
+    command=lambda e=entry_pass: toggle_entry_password(e),
     relief="flat"
 )
-button_eye.place(
+button_eye_pass.place(
     x=272.0,
     y=230.0,
     width=20.0,
     height=19.0
 )
 
-button_image_2 = PhotoImage(
+button_image_eye_confirm = PhotoImage(
     file=relative_to_assets("button_eye.png"))
-button_eye = Button(
-    image=button_image_2,
+button_eye_confirm = Button(
+    image=button_image_eye_confirm,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_eye clicked"),
+    command=lambda e=entry_confirmpass: toggle_entry_password(e),
     relief="flat"
 )
-button_eye.place(
+button_eye_confirm.place(
     x=272.0,
     y=283.0,
     width=20.0,
@@ -356,7 +374,7 @@ button_login = Button(
     image=button_image_3,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_login clicked"),
+    command=lambda: open_login(),
     relief="flat"
 )
 button_login.place(
@@ -381,5 +399,15 @@ button_signup.place(
     width=245.0,
     height=42.0
 )
+def open_login():
+    try:
+        window.destroy()
+    except Exception:
+        pass
+    try:
+        script_path = Path(__file__).parent / "login.py"
+        subprocess.Popen([sys.executable, str(script_path)])
+    except Exception as e:
+        messagebox.showerror("Error", f"Unable to open Login: {str(e)}")
 window.resizable(False, False)
 window.mainloop()
