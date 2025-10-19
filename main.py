@@ -26,7 +26,7 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 def relative_to_assets(path: str) -> Path:
-    return Path(resource_path(f"resources/assets/{path}"))
+    return Path(resource_path(f"resources/login/{path}"))
 
 class BigBrewApp:
     """Main application class that manages navigation between modules"""
@@ -205,8 +205,8 @@ class BigBrewApp:
         """Show signup window (same size as login)"""
         self.clear_window()
         self.resize_window(*self.login_size)
-        self.current_module = SignupWindow(self.root, self)
-        self.current_module.run()
+        self.current_module = SignupWindow(self.root, self.show_login, self.get_db_connection)
+        self.current_module.setup_ui()
 
     def show_forgot_password(self):
         """Show forgot password flow (same size as login)"""
@@ -223,9 +223,10 @@ class BigBrewApp:
     def show_dashboard(self, user_data):
         """Show dashboard after successful login"""
         try:
-            from dashboard import DashboardManager
+            from admin_dashboard import DashboardFactory
             self.cleanup_current_module()
-            DashboardManager(user_data, self.root).show_dashboard()
+            dashboard = DashboardFactory(user_data, self)
+            dashboard.show_dashboard()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to open Dashboard: {str(e)}")
 
@@ -262,12 +263,8 @@ class BigBrewApp:
         # Create admin dashboard
         try:
             from admin_dashboard import AdminDashboard
-            AdminDashboard(
-                self.root,
-                self.current_user,
-                self.logout,
-                self.get_db_connection
-            )
+            dashboard = AdminDashboard(self.current_user, self)
+            dashboard.show()
         except ImportError:
             messagebox.showinfo("Info", "Admin dashboard module not available")
             self.show_dashboard(self.current_user)

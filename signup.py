@@ -47,7 +47,7 @@ class SignupWindow:
         
         # Placeholder texts
         self.email_placeholder = "example@gmail.com"
-        self.studentno_placeholder = "PDM-2025-001234"
+        
         
         # Load eye images for toggle
         self.button_hidden_img = self.load_image("button_eye.png")   

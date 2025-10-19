@@ -8,7 +8,6 @@ import time
 import sys
 import os
 
-
 OUTPUT_PATH = Path(__file__).parent
 
 def resource_path(relative_path):
@@ -47,8 +46,8 @@ class OTPVerificationWindow:
         self.canvas = Canvas(
             self.parent,
             bg="#FFFFFF",
-            height=400,
-            width=670,
+            height=440,
+            width=800,
             bd=0,
             highlightthickness=0,
             relief="ridge"
@@ -56,30 +55,40 @@ class OTPVerificationWindow:
         self.canvas.place(x=0, y=0)
         self.widgets.append(self.canvas)
         
-        # Background and design elements
-        self.canvas.create_rectangle(0.0, 0.0, 670.0, 400.0, fill="#FFA500", outline="")
-        self.canvas.create_rectangle(0.0, 0.0, 335.0, 400.0, fill="#800000", outline="")
+        # Background image
+        self.image_image_1 = PhotoImage(file=relative_to_assets("image_1.png"))
+        self.canvas.create_image(400.0, 220.0, image=self.image_image_1)
         
-        self.canvas.create_text(
-            51.0, 293.0, anchor="nw",
-            text="Where quality education is a right, not privilege.",
-            fill="#FFFFFF", font=("Inter Italic", 10 * -1)
+        # Header rectangle
+        self.canvas.create_rectangle(
+            110.0, 124.0, 247.0, 140.0,
+            fill="#3A280F", outline=""
         )
         
-        self.canvas.create_text(
-            41.0, 263.0, anchor="nw",
-            text="PAMBAYANG DALUBHASAAN NG MARILAO",
-            fill="#FFD700", font=("Inter Bold", 12 * -1)
+        # Title rectangle
+        self.canvas.create_rectangle(
+            91.0, 84.0, 254.0, 132.0,
+            fill="#3A280F", outline=""
         )
-
-        # Logo
-        self.image_image_1 = PhotoImage(file=relative_to_assets("image_logo.png"))
-        self.canvas.create_image(164.0, 171.0, image=self.image_image_1)
-
+        
+        # Title text
         self.canvas.create_text(
-            378.0, 102.0, anchor="nw",
-            text="OTP Verification",
+            46.0, 85.0, anchor="nw",
+            text="Email Verification",
             fill="#FFFFFF", font=("Inter Bold", 32 * -1)
+        )
+        
+        # Instruction text
+        self.canvas.create_text(
+            91.0, 140.0, anchor="nw",
+            text="Enter the 6-digit verification code sent your email:",
+            fill="#FFFFFF", font=("Inter Bold", 13 * -1)
+        )
+        
+        # OTP container rectangle
+        self.canvas.create_rectangle(
+            25.0, 171.0, 316.0, 260.0,
+            fill="#3A280F", outline=""
         )
 
         # Verify button
@@ -91,11 +100,11 @@ class OTPVerificationWindow:
             command=self.verify_otp,
             relief="flat"
         )
-        self.button_verify.place(x=373.0, y=283.0, width=265.0, height=40.0)
+        self.button_verify.place(x=54.0, y=323.0, width=245.0, height=42.0)
         self.widgets.append(self.button_verify)
 
         # Resend OTP button
-        self.button_image_2 = PhotoImage(file=relative_to_assets("buttonLbl_resendotp.png"))
+        self.button_image_2 = PhotoImage(file=relative_to_assets("button_resend.png"))
         self.buttonLbl_resendotp = Button(
             image=self.button_image_2,
             borderwidth=0,
@@ -104,41 +113,18 @@ class OTPVerificationWindow:
             relief="flat",
             state='disabled'  # Initially disabled
         )
-        self.buttonLbl_resendotp.place(x=400.0, y=347.0, width=212.0, height=18.0)
+        self.buttonLbl_resendotp.place(x=66.0, y=376.0, width=224.0, height=26.0)
         self.widgets.append(self.buttonLbl_resendotp)
-
-        # Email icon
-        self.image_image_2 = PhotoImage(file=relative_to_assets("image_otpmail.png"))
-        self.canvas.create_image(505.0, 82.0, image=self.image_image_2)
 
         # OTP entry fields
         self.setup_otp_entries()
-
-        # Email display text
-        self.email_text = self.canvas.create_text(
-            383.0, 154.0, anchor="nw",
-            text=f"A verification code was sent to:\n{self.user_data['email']}",
-            fill="#FFFFFF", font=("Inter Bold", 16 * -1)
-        )
-
-        # Back button
-        self.button_image_3 = PhotoImage(file=relative_to_assets("button_back.png"))
-        self.button_back = Button(
-            image=self.button_image_3,
-            borderwidth=0,
-            highlightthickness=0,
-            command=self.go_back,
-            relief="flat"
-        )
-        self.button_back.place(x=624.0, y=16.0, width=30.0, height=30.0)
-        self.widgets.append(self.button_back)
 
         # Set tab order for proper navigation
         self.setup_tab_order()
 
     def setup_tab_order(self):
         """Setup proper tab navigation order"""
-        # Set tab order: OTP1 -> OTP2 -> OTP3 -> OTP4 -> OTP5 -> OTP6 -> Verify Button -> Resend Button -> Back Button
+        # Set tab order: OTP1 -> OTP2 -> OTP3 -> OTP4 -> OTP5 -> OTP6 -> Verify Button -> Resend Button
         if len(self.otp_entries) >= 6:
             for i in range(5):  # Link OTP1 to OTP5 to their next fields
                 self.otp_entries[i].bind('<Tab>', lambda e, idx=i: self.focus_next_otp(e, idx))
@@ -152,13 +138,9 @@ class OTPVerificationWindow:
             self.button_verify.bind('<Tab>', self.focus_resend_button)
             self.button_verify.bind('<Shift-Tab>', lambda e: self.focus_prev_from_verify(e))
             
-            # Resend button tab order
-            self.buttonLbl_resendotp.bind('<Tab>', self.focus_back_button)
+            # Resend button tab order - cycle back to first OTP
+            self.buttonLbl_resendotp.bind('<Tab>', lambda e: self.focus_first_otp(e))
             self.buttonLbl_resendotp.bind('<Shift-Tab>', lambda e: self.focus_verify_button(e))
-            
-            # Back button tab order
-            self.button_back.bind('<Tab>', lambda e: self.focus_first_otp(e))
-            self.button_back.bind('<Shift-Tab>', lambda e: self.focus_resend_button(e))
         
         # Also handle Enter key for quick submission
         for entry in self.otp_entries:
@@ -188,10 +170,6 @@ class OTPVerificationWindow:
         self.buttonLbl_resendotp.focus()
         return "break"
 
-    def focus_back_button(self, event):
-        """Focus on back button"""
-        self.button_back.focus()
-        return "break"
 
     def focus_prev_from_verify(self, event):
         """Focus on last OTP field from verify button"""
@@ -207,22 +185,21 @@ class OTPVerificationWindow:
 
     def setup_otp_entries(self):
         """Setup the 6 OTP entry fields with proper alignment"""
-        # Adjusted positions for better alignment
-        entry_positions = [
-            (393.0, 237.0), (438.0, 237.0), (483.0, 237.0),
-            (528.0, 237.0), (573.0, 237.0), (618.0, 237.0)
+        # Entry positions and images based on new layout
+        entry_data = [
+            (66.0, 240.0, "entry_otp1.png"),   # OTP1
+            (111.0, 240.0, "entry_otp2.png"),  # OTP2
+            (156.0, 240.0, "entry_otp3.png"),  # OTP3
+            (201.0, 240.0, "entry_otp4.png"),  # OTP4
+            (246.0, 240.0, "entry_otp5.png"),  # OTP5
+            (291.0, 240.0, "entry_otp6.png")   # OTP6
         ]
         
         vcmd = (self.parent.register(self.validate_numeric), '%P')
         
-        entry_images = [
-            "entry_otp1.png", "entry_otp2.png", "entry_otp3.png",
-            "entry_otp4.png", "entry_otp5.png", "entry_otp6.png"
-        ]
-        
-        for i, (x, y) in enumerate(entry_positions):
+        for i, (x, y, image_name) in enumerate(entry_data):
             # Create the background image first
-            entry_image = PhotoImage(file=relative_to_assets(entry_images[i]))
+            entry_image = PhotoImage(file=relative_to_assets(image_name))
             self.canvas.create_image(x, y, image=entry_image)
             
             # Store the image reference to prevent garbage collection
@@ -231,7 +208,7 @@ class OTPVerificationWindow:
             # Create the entry widget with exact positioning
             entry = Entry(
                 bd=0, 
-                bg="#F5C56E", 
+                bg="#FFF8E7", 
                 fg="#000716", 
                 highlightthickness=0,
                 font=("Inter Bold", 16), 
@@ -242,11 +219,11 @@ class OTPVerificationWindow:
                 validatecommand=vcmd
             )
             
-            # Calculate precise positioning
+            # Calculate precise positioning based on new layout
             entry_width = 24
-            entry_height = 27
+            entry_height = 38
             entry_x = x - (entry_width / 2)
-            entry_y = y - (entry_height / 2) + 5
+            entry_y = y - (entry_height / 2)
             
             entry.place(x=entry_x, y=entry_y, width=entry_width, height=entry_height)
             
@@ -369,7 +346,7 @@ class OTPVerificationWindow:
                 self._timer_id = self.parent.after(1000, self.check_otp_expiry)
 
     def go_back(self):
-        """Go back to previous screen"""
+        """Go back to previous screen - called programmatically"""
         self.destroy()
         self.back_callback()
 
