@@ -242,6 +242,30 @@ class SignupWindow:
             )
         button_signup.place(x=54.0, y=323.0, width=245.0, height=42.0)
 
+        # Set explicit tab order for proper keyboard navigation
+        self.entry_email.lift()  # Ensure email entry is on top
+        self.entry_pass.lift()
+        self.entry_confirmpass.lift()
+        button_signup.lift()
+        button_login.lift()
+        
+        # Ensure eye buttons are visible
+        button_eye_pass.lift()
+        button_eye_confirm.lift()
+        
+        # Configure tab order explicitly
+        self.entry_email.tk_focusNext = lambda: self.entry_pass
+        self.entry_pass.tk_focusNext = lambda: self.entry_confirmpass
+        self.entry_confirmpass.tk_focusNext = lambda: button_signup
+        button_signup.tk_focusNext = lambda: button_login
+        button_login.tk_focusNext = lambda: self.entry_email
+        
+        # Add Enter key handling for quick form submission
+        self.entry_email.bind('<Return>', lambda e: self.entry_pass.focus())
+        self.entry_pass.bind('<Return>', lambda e: self.entry_confirmpass.focus())
+        self.entry_confirmpass.bind('<Return>', lambda e: self.attempt_signup())
+        button_signup.bind('<Return>', lambda e: self.attempt_signup())
+        
         # Set focus to email entry
         self.entry_email.focus()
 

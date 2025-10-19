@@ -141,6 +141,50 @@ class ForgotPasswordWindow:
             font=("Inter Bold", 16 * -1)
         )
 
+        # Back button - create after all other elements
+        try:
+            button_back_1 = PhotoImage(
+                file=relative_to_assets("button_back.png"))
+            button_back = Button(
+                image=button_back_1,
+                borderwidth=0,
+                highlightthickness=0,
+                command=self.go_back,
+                relief="flat",
+                cursor="hand2"
+            )
+            button_back.place(
+                x=10.0,
+                y=10.0,
+                width=30.0,
+                height=30.0
+            )
+            # Ensure back button is on top of all other elements
+            button_back.lift()
+            # Store reference to prevent garbage collection
+            self.button_back_image = button_back_1
+        except Exception as e:
+            print(f"Error loading back button image: {e}")
+            # Fallback: create text button if image fails
+            button_back = Button(
+                text="←",
+                borderwidth=0,
+                highlightthickness=0,
+                command=self.go_back,
+                relief="flat",
+                cursor="hand2",
+                bg="#3A280F",
+                fg="#FFFFFF",
+                font=("Arial", 12, "bold")
+            )
+            button_back.place(
+                x=10.0,
+                y=10.0,
+                width=30.0,
+                height=30.0
+            )
+            button_back.lift()
+
     def send_reset_email(self):
         """Send password reset OTP email"""
         email = self.entry_email.get().strip()
