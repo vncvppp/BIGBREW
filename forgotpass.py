@@ -218,22 +218,3 @@ class ForgotPasswordWindow:
         """Clean up the window"""
         for widget in self.parent.winfo_children():
             widget.destroy()
-
-# Legacy support - if run directly, create a simple window
-if __name__ == "__main__":
-    window = Tk()
-    window.geometry("800x440")
-    window.configure(bg="#FFFFFF")
-    window.resizable(False, False)
-    
-    # Create a dummy callback for testing
-    def dummy_callback():
-        pass
-    
-    def dummy_db_connection():
-        return None
-    
-    # Create the forgot password window
-    forgot_window = ForgotPasswordWindow(window, dummy_callback, dummy_db_connection)
-    
-    window.mainloop()

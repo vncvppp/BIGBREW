@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
 
-class DashboardManager:
+class AdminDashboard:
     def __init__(self, user_data, login_window):
         self.user_data = user_data
         self.login_window = login_window

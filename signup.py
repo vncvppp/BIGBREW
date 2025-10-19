@@ -1,18 +1,12 @@
 from pathlib import Path
-from tkinter import Tk, Canvas, Entry, Button, PhotoImage, messagebox, simpledialog
-import os
+from tkinter import Tk, Canvas, Entry, Button, PhotoImage, messagebox
+import mysql.connector
+from utils import UtilityFunctions, EmailService
+from otp import OTPVerificationWindow
 import sys
-import smtplib
-import ssl
-import random
-import string
-from email.message import EmailMessage
-import bcrypt
-from db_config import db
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
+import os
+import re
+from datetime import datetime
 
 OUTPUT_PATH = Path(__file__).parent
 
@@ -22,6 +16,7 @@ def resource_path(relative_path):
         base_path = sys._MEIPASS
     except Exception:
         base_path = os.path.abspath(".")
+    
     return os.path.join(base_path, relative_path)
 
 def relative_to_assets(path: str) -> Path:
@@ -38,132 +33,27 @@ def relative_to_assets(path: str) -> Path:
         if os.path.exists(asset_path):
             return Path(asset_path)
     
+    # If no path found, return the most likely one
     return Path(possible_paths[0])
 
-def generate_otp(length: int = 6) -> str:
-    """Generate a numeric OTP code of given length."""
-    digits = string.digits
-    return ''.join(random.choice(digits) for _ in range(length))
-
-def send_otp_email(recipient_email: str, otp_code: str) -> bool:
-    """Send OTP to recipient using SMTP settings from environment variables."""
-    smtp_host = os.getenv('SMTP_HOST')
-    smtp_port = int(os.getenv('SMTP_PORT') or 587)
-    smtp_user = os.getenv('SMTP_USER')
-    smtp_pass = os.getenv('SMTP_PASS')
-    smtp_from = os.getenv('SMTP_FROM') or smtp_user
-    use_tls = (os.getenv('SMTP_USE_TLS', 'true').lower() != 'false')
-
-    if not all([smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from]):
-        messagebox.showerror(
-            "Email Not Configured",
-            "SMTP settings are missing. Please set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS (and optional SMTP_FROM)."
-        )
-        return False
-
-    # Create HTML email
-    subject = "Your BigBrew Verification Code"
-    html_body = f"""
-    <html>
-        <body style="font-family: Arial, sans-serif; background-color: #f6f6f6; padding: 20px;">
-            <div style="max-width: 600px; margin: auto; background-color: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
-                <h2 style="color: #3A280F; text-align: center;">BigBrew Account Verification</h2>
-                <p>Hello,</p>
-                <p>Your verification code is:</p>
-                <div style="text-align: center; margin: 30px 0;">
-                    <span style="display: inline-block; background-color: #3A280F; color: white; font-size: 24px; font-weight: bold; padding: 10px 20px; border-radius: 8px;">
-                        {otp_code}
-                    </span>
-                </div>
-                <p>This code will expire in 10 minutes.</p>
-                <p>If you did not request this, you can ignore this email.</p>
-                <p style="color: #999; font-size: 12px; text-align: center;">© 2025 BigBrew. All rights reserved.</p>
-            </div>
-        </body>
-    </html>
-    """
-
-    # Build email message
-    message = EmailMessage()
-    message["Subject"] = subject
-    message["From"] = smtp_from
-    message["To"] = recipient_email
-    message.set_content("Your verification code is: " + otp_code)
-    message.add_alternative(html_body, subtype="html")
-
-    # Send the message
-    try:
-        if use_tls:
-            context = ssl.create_default_context()
-            with smtplib.SMTP(smtp_host, smtp_port, timeout=20) as server:
-                server.starttls(context=context)
-                server.login(smtp_user, smtp_pass)
-                server.send_message(message)
-        else:
-            with smtplib.SMTP(smtp_host, smtp_port, timeout=20) as server:
-                server.login(smtp_user, smtp_pass)
-                server.send_message(message)
-        return True
-    except Exception as e:
-        messagebox.showerror("Email Error", f"Failed to send verification email: {str(e)}")
-        return False
-
-def create_users_table_if_needed() -> None:
-    """Create the users table if it doesn't exist."""
-    create_sql = """
-    CREATE TABLE IF NOT EXISTS users (
-        user_id INT AUTO_INCREMENT PRIMARY KEY,
-        username VARCHAR(50) UNIQUE NOT NULL,
-        email VARCHAR(100) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        user_type ENUM('admin', 'manager', 'cashier', 'barista', 'inventory_manager') DEFAULT 'cashier',
-        first_name VARCHAR(50) NOT NULL,
-        last_name VARCHAR(50) NOT NULL,
-        contact_number VARCHAR(20),
-        address TEXT,
-        hire_date DATE,
-        salary DECIMAL(10,2),
-        is_active BOOLEAN DEFAULT TRUE,
-        last_login TIMESTAMP NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    )
-    """
-    try:
-        db.execute_query(create_sql)
-    except Exception:
-        pass
-
-def ensure_unique_username(base_username: str) -> str:
-    """Ensure unique username by appending digits if necessary."""
-    candidate = base_username[:50]
-    suffix = 1
-    while True:
-        existing = db.execute_query(
-            "SELECT user_id FROM users WHERE username = %s",
-            (candidate,),
-            fetch=True
-        )
-        if not existing:
-            return candidate
-        suffix += 1
-        tail = f"{suffix}"
-        candidate = (base_username[: max(1, 50 - len(tail))] + tail)
-
-def insert_user(username: str, email: str, password_hash: str) -> bool:
-    """Insert a new user record with minimal required fields."""
-    insert_sql = """
-    INSERT INTO users (username, email, password_hash, first_name, last_name) 
-    VALUES (%s, %s, %s, %s, %s)
-    """
-    result = db.execute_query(insert_sql, (username, email, password_hash, '', ''))
-    return bool(result)
-
 class SignupWindow:
-    def __init__(self, parent, app):
+    def __init__(self, parent, show_login_callback, get_db_connection):
         self.parent = parent
-        self.app = app
+        self.show_login_callback = show_login_callback
+        self.get_db_connection = get_db_connection
+        self.otp_code = None
+        self.user_data = None
         self.images = []  # Keep references to images
+        
+        # Placeholder texts
+        self.email_placeholder = "example@gmail.com"
+        self.studentno_placeholder = "PDM-2025-001234"
+        
+        # Load eye images for toggle
+        self.button_hidden_img = self.load_image("button_eye.png")   
+        self.button_view_img = self.load_image("button_eye.png")
+        
+        self.setup_ui()
         
     def load_image(self, path: str):
         """Load image and keep reference to prevent garbage collection"""
@@ -225,11 +115,14 @@ class SignupWindow:
         self.entry_email = Entry(
             bd=0,
             bg="#FFF8E7",
-            fg="#000716",
+            fg="#666666",
             highlightthickness=0,
             font=("Inter", 12)
         )
         self.entry_email.place(x=62.0, y=168.0, width=229.0, height=38.0)
+        self.entry_email.insert(0, self.email_placeholder)
+        self.entry_email.bind('<FocusIn>', lambda e: self.clear_placeholder(self.entry_email, self.email_placeholder))
+        self.entry_email.bind('<FocusOut>', lambda e: self.restore_placeholder(self.entry_email, self.email_placeholder))
 
         # Confirm password entry
         entry_image_confirmpass = self.load_image("entry_confirmpass.png")
@@ -308,7 +201,7 @@ class SignupWindow:
                 image=button_image_login,
                 borderwidth=0,
                 highlightthickness=0,
-                command=self.open_login,
+                command=self.show_login_callback,
                 relief="flat",
                 cursor="hand2"
             )
@@ -317,7 +210,7 @@ class SignupWindow:
                 text="Back to Login",
                 borderwidth=0,
                 highlightthickness=0,
-                command=self.open_login,
+                command=self.show_login_callback,
                 relief="flat",
                 bg="#D2691E",
                 fg="#FFFFFF",
@@ -332,7 +225,7 @@ class SignupWindow:
                 image=button_image_signup,
                 borderwidth=0,
                 highlightthickness=0,
-                command=self.handle_signup,
+                command=self.attempt_signup,
                 relief="flat",
                 cursor="hand2"
             )
@@ -341,7 +234,7 @@ class SignupWindow:
                 text="Sign Up",
                 borderwidth=0,
                 highlightthickness=0,
-                command=self.handle_signup,
+                command=self.attempt_signup,
                 relief="flat",
                 bg="#3A280F",
                 fg="#FFFFFF",
@@ -351,84 +244,266 @@ class SignupWindow:
 
         # Set focus to email entry
         self.entry_email.focus()
+
+    def clear_placeholder(self, entry, placeholder_text):
+        """Clear placeholder text when entry is focused"""
+        if entry.get() == placeholder_text:
+            entry.delete(0, 'end')
+            entry.config(fg="#000716")
+            if entry == self.entry_pass:
+                entry.config(show="*")
+
+    def restore_placeholder(self, entry, placeholder_text):
+        """Restore placeholder text when entry loses focus and is empty"""
+        if entry.get().strip() == "":
+            entry.insert(0, placeholder_text)
+            entry.config(fg="#666666")
+            if entry == self.entry_pass:
+                entry.config(show="")
+
+    def is_valid_pdm_student_number(self, student_number):
+        """Validate PDM student number format: PDM-YYYY-NNNNNN"""
+        pattern = r'^PDM-\d{4}-\d{6}$'
+        return re.match(pattern, student_number.upper()) is not None
     
-    def handle_signup(self):
-        """Handle signup attempt"""
-        email = self.entry_email.get().strip()
-        password = self.entry_pass.get()
-        confirm = self.entry_confirmpass.get()
+    def force_uppercase_and_validate(self, event=None):
+        """Force uppercase and run validation"""
+        current_text = self.entry_studentno.get()
+        upper_text = current_text.upper()
 
-        if not email or '@' not in email:
-            messagebox.showerror("Invalid Email", "Please enter a valid email address.")
-            return
-        if not password or len(password) < 8:
-            messagebox.showerror("Weak Password", "Password must be at least 8 characters long.")
-            return
-        if password != confirm:
-            messagebox.showerror("Mismatch", "Password and Confirm Password do not match.")
-            return
+        if current_text != upper_text:
+            cursor_pos = self.entry_studentno.index("insert")
+            self.entry_studentno.delete(0, "end")
+            self.entry_studentno.insert(0, upper_text)
+            try:
+                self.entry_studentno.icursor(cursor_pos)
+            except:
+                self.entry_studentno.icursor("end")
 
-        if not db.test_connection():
-            messagebox.showerror("Database Error", "Unable to connect to database. Please try again later.")
-            return
+        self.validate_student_number_format()
 
-        create_users_table_if_needed()
+    def validate_student_number_format(self, event=None):
+        """Validate student number format in real-time"""
+        student_number = self.entry_studentno.get().strip()
 
-        otp = generate_otp()
-        if not send_otp_email(email, otp):
+        if student_number == self.studentno_placeholder:
             return
 
-        # Ask user to enter OTP (up to 3 attempts)
-        max_attempts = 3
-        for attempt in range(max_attempts):
-            entered = simpledialog.askstring(
-                "Email Verification",
-                "Enter the 6-digit verification code sent to your email:",
-                parent=self.parent,
-                show='*'
-            )
-            if entered is None:
-                # user cancelled
-                return
-            if entered.strip() == otp:
-                break
-            else:
-                if attempt < max_attempts - 1:
-                    messagebox.showerror("Invalid Code", "Incorrect code. Please try again.")
+        if len(student_number) > 0:
+            student_number = student_number.upper()
+            cleaned = re.sub(r'[^A-Z0-9-]', '', student_number)
+            raw = cleaned.replace("-", "")
+
+            if raw.startswith("PDM") and len(raw) > 3:
+                year_part = raw[3:7] if len(raw) > 7 else raw[3:]
+                number_part = raw[7:13] if len(raw) > 7 else ""
+
+                formatted = f"PDM-{year_part}"
+
+                if cleaned.endswith("-") and not number_part:
+                    formatted += "-"
+                elif number_part:
+                    formatted += f"-{number_part}"
+
+                if formatted != cleaned:
+                    current_pos = self.entry_studentno.index('insert')
+                    self.entry_studentno.delete(0, 'end')
+                    self.entry_studentno.insert(0, formatted)
+
+                    try:
+                        self.entry_studentno.icursor(min(current_pos, len(formatted)))
+                    except:
+                        self.entry_studentno.icursor('end')
+
+            if student_number and student_number != self.studentno_placeholder:
+                if self.is_valid_pdm_student_number(student_number):
+                    self.entry_studentno.config(fg="#006400")
                 else:
-                    messagebox.showerror("Verification Failed", "Too many incorrect attempts.")
-                    return
+                    self.entry_studentno.config(fg="#8B0000")
 
-        # Hash and insert
-        try:
-            password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to hash password: {str(e)}")
+    def attempt_signup(self):
+        """Attempt to sign up the user"""
+        email = self.entry_email.get().strip()
+        password = self.entry_pass.get().strip()
+        confirm_password = self.entry_confirmpass.get().strip()
+
+        # Remove placeholder values if they weren't changed
+        if email == self.email_placeholder:
+            email = ""
+
+        # Validation
+        if not all([email, password, confirm_password]):
+            messagebox.showerror("Error", "Please fill in all fields")
+            if not email:
+                self.restore_placeholder(self.entry_email, self.email_placeholder)
             return
 
-        base_username = email.split('@', 1)[0]
-        username = ensure_unique_username(base_username)
+        if not UtilityFunctions.is_valid_email(email):
+            messagebox.showerror("Error", "Please enter a valid email address")
+            self.entry_email.focus()
+            return
 
-        if insert_user(username, email, password_hash):
-            messagebox.showinfo("Success", "Your account has been created. You can now log in.")
-            # Clear fields
-            self.entry_email.delete(0, 'end')
-            self.entry_pass.delete(0, 'end')
-            self.entry_confirmpass.delete(0, 'end')
-            # Navigate back to login
-            self.open_login()
-        else:
-            messagebox.showerror("Error", "Failed to create account. Email may already be registered.")
-    
-    def open_login(self):
-        """Navigate back to login"""
-        self.app.show_login()
-    
-    def run(self):
-        """Run the signup module"""
-        self.setup_ui()
-    
+        if password != confirm_password:
+            messagebox.showerror("Error", "Passwords do not match")
+            self.entry_pass.focus()
+            return
+
+        if len(password) < 6:
+            messagebox.showerror("Error", "Password must be at least 6 characters long")
+            self.entry_pass.focus()
+            return
+
+        db_connection = self.get_db_connection()
+        if not db_connection:
+            messagebox.showerror("Database Error", "Cannot connect to database")
+            return
+
+        try:
+            cursor = db_connection.cursor(dictionary=True)
+
+            # Check if email already exists in users table
+            cursor.execute("SELECT user_id FROM users WHERE email = %s", (email,))
+            if cursor.fetchone():
+                messagebox.showerror("Error", "Email already registered")
+                return
+
+            # Generate OTP and store temporary user data
+            self.otp_code = UtilityFunctions.generate_otp()
+            self.user_data = {
+                'email': email,
+                'password': password,
+                'username': email.split('@')[0]  # Use email prefix as username
+            }
+
+            # Send OTP email
+            email_service = EmailService()
+            if email_service.send_otp_email(email, self.otp_code):
+                self.show_otp_verification()
+            else:
+                messagebox.showerror("Error", "Failed to send OTP. Please try again.")
+
+        except mysql.connector.Error as e:
+            messagebox.showerror("Database Error", f"Registration failed: {str(e)}")
+        finally:
+            if db_connection and db_connection.is_connected():
+                cursor.close()
+
+    def show_otp_verification(self):
+        """Show OTP verification window"""
+        self.destroy()
+        OTPVerificationWindow(
+            self.parent, 
+            self.user_data, 
+            self.otp_code, 
+            self.complete_registration,
+            self.show_login_callback,
+            self.get_db_connection
+        )
+
+    def complete_registration(self):
+        """Complete the registration process with proper transaction handling"""
+        db_connection = self.get_db_connection()
+        if not db_connection or not self.user_data:
+            messagebox.showerror("Error", "Registration failed")
+            return
+
+        cursor = None
+        try:
+            cursor = db_connection.cursor(dictionary=True)
+            
+            # Check for active transaction and rollback if needed
+            try:
+                if db_connection.in_transaction:
+                    db_connection.rollback()
+            except:
+                pass
+            
+            # Hash password
+            hashed_password = UtilityFunctions.hash_password(self.user_data['password'])
+            
+            # Start fresh transaction
+            db_connection.start_transaction()
+            
+            # Insert into users table (authentication)
+            cursor.execute("""
+                INSERT INTO users (username, email, password_hash, user_type, is_active) 
+                VALUES (%s, %s, %s, %s, %s)
+            """, (
+                self.user_data['username'],
+                self.user_data['email'],
+                hashed_password,
+                'cashier',  # Default user type for BigBrew POS
+                True
+            ))
+            
+            user_id = cursor.lastrowid
+            
+            db_connection.commit()
+            
+            # Show success message
+            success_message = f"""
+            Registration completed successfully!
+
+            Account Information:
+            • Username: {self.user_data['username']}
+            • Email: {self.user_data['email']}
+            • User Type: Cashier
+
+            You can now login using your username or email.
+            """
+            
+            messagebox.showinfo("Success", success_message.strip())
+            self.show_login_callback()
+            
+        except mysql.connector.Error as e:
+            try:
+                db_connection.rollback()
+            except:
+                pass
+            
+            error_message = f"Registration failed: {str(e)}"
+            if "Duplicate entry" in str(e):
+                if "email" in str(e):
+                    error_message = "Email already registered. Please use a different email address."
+                elif "username" in str(e):
+                    error_message = "Username already taken. Please choose a different username."
+            
+            messagebox.showerror("Registration Error", error_message)
+            
+        except Exception as e:
+            try:
+                db_connection.rollback()
+            except:
+                pass
+            messagebox.showerror("Unexpected Error", f"An unexpected error occurred: {str(e)}")
+            
+        finally:
+            if cursor:
+                cursor.close()
+            
     def destroy(self):
         """Clean up the window"""
         for widget in self.parent.winfo_children():
             widget.destroy()
+
+# For testing purposes - can be removed when integrated
+if __name__ == "__main__":
+    def test_show_login():
+        print("Would show login window")
+    
+    def test_get_db_connection():
+        from db_config import db
+        return db.get_connection()
+    
+    window = Tk()
+    window.geometry("800x440")
+    window.configure(bg="#FFFFFF")
+    window.resizable(False, False)
+    
+    signup_window = SignupWindow(
+        window, 
+        test_show_login, 
+        test_get_db_connection
+    )
+    
+    window.mainloop()
