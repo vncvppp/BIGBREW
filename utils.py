@@ -40,32 +40,7 @@ class UtilityFunctions:
     def is_valid_email(email):
         """Validate email format"""
         pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-        return re.match(pattern, email) is not None
-    
-    @staticmethod
-    def is_valid_pdm_student_number(student_number):
-        """Validate PDM student number format: PDM-YYYY-NNNNNN"""
-        import re
-        pattern = r'^PDM-\d{4}-\d{6}$'
-        return re.match(pattern, student_number.upper()) is not None
-    
-    @staticmethod
-    def format_student_number(student_number):
-        """Format student number to PDM standard format"""
-        # Remove any existing hyphens and convert to uppercase
-        cleaned = student_number.replace('-', '').upper()
-        
-        if cleaned.startswith('PDM') and len(cleaned) > 3:
-            year_part = cleaned[3:7] if len(cleaned) > 7 else cleaned[3:]
-            number_part = cleaned[7:13] if len(cleaned) > 7 else "000000"
-            
-            # Pad number part with zeros if needed
-            number_part = number_part.ljust(6, '0')
-            
-            return f"PDM-{year_part}-{number_part}"
-        
-        return student_number.upper()
-
+        return re.match(pattern, email) is not None   
 
 class EmailService:
     def __init__(self):
@@ -223,127 +198,7 @@ class EmailService:
             print(f"❌ Email with attachments error: {e}")
             return self._fallback_attachment_email(to_email, subject, body, attachments_data)
     
-    def send_document_ready_email(self, to_email, request_details, db_connection):
-        """Send email when document is ready with attachments"""
-        try:
-            # Get attachments from database
-            cursor = db_connection.cursor()
-            cursor.execute("""
-                SELECT file_name, file_data, file_type 
-                FROM document_attachments 
-                WHERE request_id = %s
-            """, (request_details.get('request_id'),))
-            
-            attachments = cursor.fetchall()
-            cursor.close()
-            
-            # Prepare attachments data
-            attachments_data = []
-            for file_name, file_data, file_type in attachments:
-                if file_data:  # Only include if BLOB data exists
-                    attachments_data.append({
-                        'file_name': file_name,
-                        'file_data': file_data,
-                        'file_type': file_type or 'application/pdf'
-                    })
-            
-            subject = f"Request Completed - #{request_details.get('request_number', '')}"
-            body = f"""
-            <html>
-            <body style="font-family: Arial, sans-serif; line-height: 1.6;">
-                <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
-                    <div style="text-align: center; background: #800000; padding: 20px; border-radius: 10px 10px 0 0;">
-                        <h1 style="color: #FFD700; margin: 0;">PAMBAYANG DALUBHASAAN NG MARILAO</h1>
-                        <h2 style="color: white; margin: 10px 0 0 0;">Document Request System</h2>
-                    </div>
-                    
-                    <div style="padding: 30px;">
-                        <h2 style="color: #800000;">Request Completed</h2>
-                        <p>Dear {request_details.get('student_name', 'Student')},</p>
-                        
-                        <p>Your document request <strong>#{request_details.get('request_number', '')}</strong> has been completed.</p>
-                        
-                        <div style="background: #f9f9f9; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                            <h3 style="color: #800000; margin-top: 0;">Request Details:</h3>
-                            <p><strong>Document:</strong> {request_details.get('document_name', 'N/A')}</p>
-                            <p><strong>Delivery Method:</strong> {request_details.get('delivery_method', 'Email').title()}</p>
-                            <p><strong>Completed Date:</strong> {request_details.get('completed_date', 'N/A')}</p>
-                        </div>
-                        
-                        <p>Your document has been delivered to your email. Please check your inbox and spam folder.</p>
-                        
-                        <hr style="margin: 30px 0;">
-                        <p style="color: #666; font-size: 12px;">
-                            This is an automated message. Please do not reply to this email.
-                        </p>
-                    </div>
-                </div>
-            </body>
-            </html>
-            """
-            
-            if attachments_data:
-                return self.send_email_with_attachments(to_email, subject, body, attachments_data)
-            else:
-                # Fallback to regular email if no attachments
-                return self._send_email(to_email, subject, body)
-                
-        except Exception as e:
-            print(f"❌ Document ready email error: {e}")
-            return False
     
-    def send_request_confirmation(self, to_email, request_details):
-        """Send document request confirmation email"""
-        try:
-            if not self.email_enabled:
-                return self._fallback_confirmation_email(to_email, request_details)
-            
-            subject = f"PDM Document Request Confirmation - {request_details.get('reference_number', '')}"
-            body = f"""
-            <html>
-            <body style="font-family: Arial, sans-serif; line-height: 1.6;">
-                <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
-                    <div style="text-align: center; background: #800000; padding: 20px; border-radius: 10px 10px 0 0;">
-                        <h1 style="color: #FFD700; margin: 0;">PAMBAYANG DALUBHASAAN NG MARILAO</h1>
-                        <h2 style="color: white; margin: 10px 0 0 0;">Document Request Confirmation</h2>
-                    </div>
-                    
-                    <div style="padding: 30px;">
-                        <h2 style="color: #800000;">Request Received</h2>
-                        <p>Dear {request_details.get('student_name', 'Student')},</p>
-                        <p>Your document request has been received and is being processed.</p>
-                        
-                        <div style="background: #f9f9f9; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                            <h3 style="color: #800000; margin-top: 0;">Request Details:</h3>
-                            <p><strong>Reference Number:</strong> {request_details.get('reference_number', 'N/A')}</p>
-                            <p><strong>Document Type:</strong> {request_details.get('document_name', 'N/A')}</p>
-                            <p><strong>Quantity:</strong> {request_details.get('quantity', 1)}</p>
-                            <p><strong>Total Fee:</strong> ₱{request_details.get('total_fee', 0):.2f}</p>
-                            <p><strong>Request Date:</strong> {request_details.get('request_date', 'N/A')}</p>
-                        </div>
-                        
-                        <p><strong>Next Steps:</strong></p>
-                        <ol>
-                            <li>Wait for payment verification</li>
-                            <li>Track your request status in the system</li>
-                            <li>You will be notified when your document is ready for pickup</li>
-                        </ol>
-                        
-                        <hr style="margin: 30px 0;">
-                        <p style="color: #666; font-size: 12px;">
-                            This is an automated confirmation. Please do not reply to this email.
-                        </p>
-                    </div>
-                </div>
-            </body>
-            </html>
-            """
-            
-            return self._send_email(to_email, subject, body)
-            
-        except Exception as e:
-            print(f"❌ Confirmation email error: {e}")
-            return self._fallback_confirmation_email(to_email, request_details)
     
     def _fallback_otp_email(self, to_email, otp_code, mode="SIMULATION"):
         """Fallback method for OTP email"""
@@ -351,7 +206,7 @@ class EmailService:
         print(f"📧 OTP EMAIL ({mode})")
         print("=" * 50)
         print(f"To: {to_email}")
-        print(f"Subject: PDM Document System - OTP Verification")
+        print(f"Subject: BigBrew Coffee Shop - Customer Account Verification")
         print(f"OTP Code: {otp_code}")
         print("=" * 50)
         if mode == "SIMULATION":
@@ -364,10 +219,10 @@ class EmailService:
     def _fallback_confirmation_email(self, to_email, request_details):
         """Fallback for confirmation email"""
         print("=" * 50)
-        print("📧 REQUEST CONFIRMATION SIMULATION")
+        print("📧 ORDER CONFIRMATION SIMULATION")
         print("=" * 50)
         print(f"To: {to_email}")
-        print(f"Document: {request_details.get('document_name', 'N/A')}")
+        print(f"Order: {request_details.get('order_name', 'N/A')}")
         print(f"Reference: {request_details.get('reference_number', 'N/A')}")
         print("=" * 50)
         return True
@@ -401,66 +256,8 @@ class PaymentProcessor:
         }
 
 
-class ValidationHelper:
-    @staticmethod
-    def validate_student_clearance(db_connection, student_id):
-        """Check if student has no outstanding obligations"""
-        try:
-            # Simulate clearance check - always pass in development
-            if APP_CONFIG.get('debug', True):
-                print(f"✅ Clearance check passed for student ID: {student_id}")
-                return True
-            
-            # In production, this would check against actual clearance system
-            cursor = db_connection.cursor()
-            # Add actual clearance logic here
-            return True
-        except Exception as e:
-            print(f"Error validating clearance: {e}")
-            return False
-    
-    @staticmethod
-    def validate_payment_status(db_connection, request_id):
-        """Validate payment status for a request"""
-        try:
-            cursor = db_connection.cursor()
-            cursor.execute("SELECT payment_status FROM document_requests WHERE request_id = %s", (request_id,))
-            result = cursor.fetchone()
-            return result[0] if result else None
-        except Exception as e:
-            print(f"Error validating payment: {e}")
-            return None
-
-
-class DocumentGenerator:
-    @staticmethod
-    def generate_certificate_of_enrollment(student_data, request_data):
-        """Generate Certificate of Enrollment PDF"""
-        # This would generate the actual PDF document
-        # For now, return a simulated PDF content
-        pdf_content = f"""
-        CERTIFICATE OF ENROLLMENT
-        PAMBAYANG DALUBHASAAN NG MARILAO
-        
-        This is to certify that {student_data['first_name']} {student_data['last_name']}
-        with Student Number {student_data['student_number']}
-        is currently enrolled in {student_data['course']}
-        for the {student_data['year_level']} for Academic Year 2024-2025.
-        
-        Request Number: {request_data['request_number']}
-        Date Issued: {datetime.now().strftime('%Y-%m-%d')}
-        
-        Registrar's Office
-        Pambayang Dalubhasaan ng Marilao
-        """
-        
-        # In a real implementation, you would use a PDF generation library
-        # like reportlab, weasyprint, or pdfkit here
-        return pdf_content.encode('utf-8')
-
 
 # Global utility instances
 email_service = EmailService()
 payment_processor = PaymentProcessor()
-validation_helper = ValidationHelper()
-document_generator = DocumentGenerator()
+

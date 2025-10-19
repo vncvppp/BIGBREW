@@ -159,24 +159,45 @@ class ForgotPasswordWindow:
             return
 
         try:
-            cursor = db_connection.cursor()
-            cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-            user = cursor.fetchone()
+            cursor = db_connection.cursor(dictionary=True)
+            
+            # Check if email exists in customers table (not users table)
+            cursor.execute("SELECT customer_id, email FROM customers WHERE email = %s AND is_active = 1", (email,))
+            customer = cursor.fetchone()
 
-            if not user:
+            if not customer:
                 messagebox.showerror("Error", "No account found with this email address")
                 return
 
             # Generate OTP
             self.otp_code = UtilityFunctions.generate_otp()
             self.user_email = email
+            
+            # Store OTP in database for verification tracking
+            from datetime import datetime, timedelta
+            expires_at = datetime.now() + timedelta(minutes=3)
+            
+            # Clean up any existing OTP for this email and purpose
+            cursor.execute("DELETE FROM otp_verification WHERE email = %s AND purpose = %s", (email, 'password_reset'))
+            
+            cursor.execute("""
+                INSERT INTO otp_verification (email, otp_code, purpose, expires_at)
+                VALUES (%s, %s, %s, %s)
+            """, (email, self.otp_code, 'password_reset', expires_at))
+            
+            db_connection.commit()
 
             # Send OTP email
             email_service = EmailService()
-            if email_service.send_otp_email(email, self.otp_code):
-                self.show_otp_verification()
-            else:
-                messagebox.showerror("Error", "Failed to send OTP. Please try again.")
+            try:
+                if email_service.send_otp_email(email, self.otp_code):
+                    self.show_otp_verification()
+                else:
+                    messagebox.showerror("Error", "Failed to send OTP email. Please check your email configuration or try again later.")
+            except Exception as email_error:
+                print(f"Email sending error: {email_error}")
+                messagebox.showerror("Email Error", f"Failed to send verification email: {str(email_error)}")
+                return
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to process request: {str(e)}")
@@ -195,7 +216,8 @@ class ForgotPasswordWindow:
             self.otp_code,
             self.show_password_reset,
             self.show_login_callback,
-            self.get_db_connection
+            self.get_db_connection,
+            purpose='password_reset'
         )
 
     def show_password_reset(self):

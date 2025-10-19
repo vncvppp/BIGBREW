@@ -78,7 +78,44 @@ class LoginWindow:
         if image_image_1:
             self.canvas.create_image(400.0, 220.0, image=image_image_1)
 
-        # Login button
+        # Username/Email entry (Tab Index 1)
+        entry_image_username = self.load_image("entry_username.png")
+        if entry_image_username:
+            self.canvas.create_image(176.5, 188.0, image=entry_image_username)
+            
+        self.username_entry = Entry(
+            bd=0,
+            bg="#FFF8E7",
+            fg="#000716",
+            highlightthickness=0,
+            font=("Inter", 12)
+        )
+        self.username_entry.place(x=62.0, y=168.0, width=229.0, height=38.0)
+        self.username_entry.bind('<Return>', lambda e: self.password_entry.focus())
+        
+        # Add placeholder text for username/email field
+        self.username_entry.insert(0, "Username or Email")
+        self.username_entry.config(fg="#666666")
+        self.username_entry.bind('<FocusIn>', self.clear_username_placeholder)
+        self.username_entry.bind('<FocusOut>', self.restore_username_placeholder)
+
+        # Password entry (Tab Index 2)
+        entry_image_pass = self.load_image("entry_pass.png")
+        if entry_image_pass:
+            self.canvas.create_image(177.5, 240.0, image=entry_image_pass)
+            
+        self.password_entry = Entry(
+            bd=0,
+            bg="#FFF8E7",
+            fg="#000716",
+            highlightthickness=0,
+            show="●",
+            font=("Inter", 12)
+        )
+        self.password_entry.place(x=63.0, y=220.0, width=229.0, height=38.0)
+        self.password_entry.bind('<Return>', lambda e: self.handle_login())
+
+        # Login button (Tab Index 3)
         button_image_login = self.load_image("button_login.png")
         if button_image_login:
             self.button_login = Button(
@@ -101,43 +138,6 @@ class LoginWindow:
                 cursor="hand2"
             )
         self.button_login.place(x=54.0, y=323.0, width=245.0, height=42.0)
-
-        # Password entry
-        entry_image_pass = self.load_image("entry_pass.png")
-        if entry_image_pass:
-            self.canvas.create_image(177.5, 240.0, image=entry_image_pass)
-            
-        self.password_entry = Entry(
-            bd=0,
-            bg="#FFF8E7",
-            fg="#000716",
-            highlightthickness=0,
-            show="*",
-            font=("Inter", 12)
-        )
-        self.password_entry.place(x=63.0, y=220.0, width=229.0, height=38.0)
-        self.password_entry.bind('<Return>', lambda e: self.handle_login())
-
-        # Username/Email entry
-        entry_image_username = self.load_image("entry_username.png")
-        if entry_image_username:
-            self.canvas.create_image(176.5, 188.0, image=entry_image_username)
-            
-        self.username_entry = Entry(
-            bd=0,
-            bg="#FFF8E7",
-            fg="#000716",
-            highlightthickness=0,
-            font=("Inter", 12)
-        )
-        self.username_entry.place(x=62.0, y=168.0, width=229.0, height=38.0)
-        self.username_entry.bind('<Return>', lambda e: self.password_entry.focus())
-        
-        # Add placeholder text for username/email field
-        self.username_entry.insert(0, "Username or Email")
-        self.username_entry.config(fg="#666666")
-        self.username_entry.bind('<FocusIn>', self.clear_username_placeholder)
-        self.username_entry.bind('<FocusOut>', self.restore_username_placeholder)
 
         # Eye toggle button
         self.show_password = False
@@ -186,13 +186,26 @@ class LoginWindow:
                 cursor="hand2"
             ).place(x=100.0, y=377.0, width=158.0, height=18.0)
 
+        # Set explicit tab order for proper keyboard navigation
+        self.username_entry.lift()  # Ensure username entry is on top
+        self.password_entry.lift()
+        self.button_login.lift()
+        
+        # Ensure eye button is visible
+        self.button_eye.lift()
+        
+        # Configure tab order explicitly
+        self.username_entry.tk_focusNext = lambda: self.password_entry
+        self.password_entry.tk_focusNext = lambda: self.button_login
+        self.button_login.tk_focusNext = lambda: self.username_entry
+        
         # Set focus to username entry
         self.username_entry.focus()
 
     def toggle_password_visibility(self):
         """Toggle password visibility"""
         self.show_password = not self.show_password
-        self.password_entry.config(show="" if self.show_password else "*")
+        self.password_entry.config(show="" if self.show_password else "●")
 
     def clear_username_placeholder(self, event):
         """Clear username placeholder when focused"""
@@ -207,8 +220,14 @@ class LoginWindow:
             self.username_entry.config(fg="#666666")
 
     def on_forgot_password(self):
-        """Handle forgot password"""
-        messagebox.showinfo("Forgot Password", "Please contact your administrator to reset your password.")
+        """Handle forgot password - redirect to forgot password window"""
+        from forgotpass import ForgotPasswordWindow
+        self.destroy()
+        ForgotPasswordWindow(
+            self.parent,
+            self.app.show_login,
+            self.app.get_db_connection
+        )
 
     def on_signup(self):
         """Navigate to signup"""

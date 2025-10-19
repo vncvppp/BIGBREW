@@ -43,10 +43,6 @@ class PasswordResetWindow:
         self.get_db_connection = get_db_connection
         self.images = []  # Keep references to images
         
-        # Load eye images for toggle
-        self.button_hidden_img = self.load_image("button_eye.png")
-        self.button_view_img = self.load_image("button_eye.png")
-        
         self.setup_ui()
         
     def load_image(self, path: str):
@@ -88,11 +84,11 @@ class PasswordResetWindow:
 
         # Background rectangle
         self.canvas.create_rectangle(
-    49.0,
-    87.0,
-    316.0,
-    276.0,
-    fill="#3A280F",
+            49.0,
+            87.0,
+            316.0,
+            276.0,
+            fill="#3A280F",
             outline=""
         )
 
@@ -100,9 +96,9 @@ class PasswordResetWindow:
         button_image_1 = self.load_image("button_resetpass.png")
         if button_image_1:
             self.button_resetpass = Button(
-    image=button_image_1,
-    borderwidth=0,
-    highlightthickness=0,
+                image=button_image_1,
+                borderwidth=0,
+                highlightthickness=0,
                 command=self.reset_password,
                 relief="flat",
                 cursor="hand2"
@@ -126,9 +122,9 @@ class PasswordResetWindow:
             self.canvas.create_image(177.5, 174.0, image=entry_image_1)
             
         self.entry_newpass = Entry(
-    bd=0,
-    bg="#FFF8E7",
-    fg="#000716",
+            bd=0,
+            bg="#FFF8E7",
+            fg="#000716",
             highlightthickness=0,
             show="●",
             font=("Inter", 12)
@@ -136,36 +132,15 @@ class PasswordResetWindow:
         self.entry_newpass.place(x=63.0, y=154.0, width=229.0, height=38.0)
         self.entry_newpass.bind('<Return>', lambda e: self.entry_confirmpass.focus())
 
-        # New password toggle button
-        if self.button_hidden_img:
-            self.button_toggle_new = Button(
-                image=self.button_hidden_img,
-                borderwidth=0,
-                highlightthickness=0,
-                command=lambda: self.toggle_password_visibility(self.entry_newpass, self.button_toggle_new),
-                relief="flat",
-                cursor="hand2"
-            )
-        else:
-            self.button_toggle_new = Button(
-                text="👁",
-                borderwidth=0,
-                highlightthickness=0,
-                command=lambda: self.toggle_password_visibility(self.entry_newpass, self.button_toggle_new),
-                relief="flat",
-                cursor="hand2"
-            )
-        self.button_toggle_new.place(x=272.0, y=164.0, width=20.0, height=19.0)
-
         # Confirm password entry
         entry_image_2 = self.load_image("entry_confirmpass.png")
         if entry_image_2:
             self.canvas.create_image(178.5, 225.0, image=entry_image_2)
             
         self.entry_confirmpass = Entry(
-    bd=0,
-    bg="#FFF8E7",
-    fg="#000716",
+            bd=0,
+            bg="#FFF8E7",
+            fg="#000716",
             highlightthickness=0,
             show="●",
             font=("Inter", 12)
@@ -173,50 +148,93 @@ class PasswordResetWindow:
         self.entry_confirmpass.place(x=64.0, y=205.0, width=229.0, height=38.0)
         self.entry_confirmpass.bind('<Return>', lambda e: self.reset_password())
 
-        # Confirm password toggle button
-        if self.button_view_img:
-            self.button_toggle_confirm = Button(
-                image=self.button_view_img,
-    borderwidth=0,
-    highlightthickness=0,
-                command=lambda: self.toggle_password_visibility(self.entry_confirmpass, self.button_toggle_confirm),
+        # First eye button (for new password)
+        button_image_2 = self.load_image("button_eye.png")
+        if button_image_2:
+            self.button_eye_new = Button(
+                image=button_image_2,
+                borderwidth=0,
+                highlightthickness=0,
+                command=lambda: self.toggle_password_visibility(self.entry_newpass),
                 relief="flat",
                 cursor="hand2"
             )
         else:
-            self.button_toggle_confirm = Button(
+            self.button_eye_new = Button(
                 text="👁",
-    borderwidth=0,
-    highlightthickness=0,
-                command=lambda: self.toggle_password_visibility(self.entry_confirmpass, self.button_toggle_confirm),
+                borderwidth=0,
+                highlightthickness=0,
+                command=lambda: self.toggle_password_visibility(self.entry_newpass),
                 relief="flat",
                 cursor="hand2"
             )
-        self.button_toggle_confirm.place(x=272.0, y=217.0, width=20.0, height=19.0)
+        self.button_eye_new.place(x=272.0, y=164.0, width=20.0, height=19.0)
+
+        # Second eye button (for confirm password)
+        button_image_3 = self.load_image("button_eye.png")
+        if button_image_3:
+            self.button_eye_confirm = Button(
+                image=button_image_3,
+                borderwidth=0,
+                highlightthickness=0,
+                command=lambda: self.toggle_password_visibility(self.entry_confirmpass),
+                relief="flat",
+                cursor="hand2"
+            )
+        else:
+            self.button_eye_confirm = Button(
+                text="👁",
+                borderwidth=0,
+                highlightthickness=0,
+                command=lambda: self.toggle_password_visibility(self.entry_confirmpass),
+                relief="flat",
+                cursor="hand2"
+            )
+        self.button_eye_confirm.place(x=272.0, y=217.0, width=20.0, height=19.0)
 
         # Title text
         self.canvas.create_text(
-    38.0,
-    87.0,
-    anchor="nw",
-    text="Reset Password",
-    fill="#FFFFFF",
-    font=("Inter Bold", 36 * -1)
-)
+            38.0,
+            87.0,
+            anchor="nw",
+            text="Reset Password",
+            fill="#FFFFFF",
+            font=("Inter Bold", 36 * -1)
+        )
 
+        # # Subtitle text
+        # self.canvas.create_text(
+        #     38.0,
+        #     125.0,
+        #     anchor="nw",
+        #     text=f"Create a new password for {self.user_email}",
+        #     fill="#FFFFFF",
+        #     font=("Inter", 12)
+        # )
+
+        # Set explicit tab order for proper keyboard navigation
+        self.entry_newpass.lift()  # Ensure new password entry is on top
+        self.entry_confirmpass.lift()
+        self.button_resetpass.lift()
+        
+        # Ensure eye buttons are visible
+        self.button_eye_new.lift()
+        self.button_eye_confirm.lift()
+        
+        # Configure tab order explicitly
+        self.entry_newpass.tk_focusNext = lambda: self.entry_confirmpass
+        self.entry_confirmpass.tk_focusNext = lambda: self.button_resetpass
+        self.button_resetpass.tk_focusNext = lambda: self.entry_newpass
+        
         # Set focus to new password entry
         self.entry_newpass.focus()
 
-    def toggle_password_visibility(self, entry_widget, button_widget):
+    def toggle_password_visibility(self, entry_widget):
         """Toggle the visibility of the password field"""
         if entry_widget.cget('show') == "●":
             entry_widget.config(show="")
-            if self.button_hidden_img:
-                button_widget.config(image=self.button_hidden_img)
         else:
             entry_widget.config(show="●")
-            if self.button_view_img:
-                button_widget.config(image=self.button_view_img)
 
     def reset_password(self):
         """Reset the user's password"""
@@ -234,6 +252,15 @@ class PasswordResetWindow:
         if len(new_password) < 6:
             messagebox.showerror("Error", "Password must be at least 6 characters long")
             return
+        
+        # Additional password strength validation
+        if not any(c.isupper() for c in new_password):
+            messagebox.showerror("Error", "Password must contain at least one uppercase letter")
+            return
+            
+        if not any(c.isdigit() for c in new_password):
+            messagebox.showerror("Error", "Password must contain at least one number")
+            return
 
         db_connection = self.get_db_connection()
         if not db_connection:
@@ -241,21 +268,62 @@ class PasswordResetWindow:
             return
 
         try:
-            cursor = db_connection.cursor()
-            hashed_password = UtilityFunctions.hash_password(new_password)
+            cursor = db_connection.cursor(dictionary=True)
+            
+            # First verify the customer exists and is active
             cursor.execute(
-                "UPDATE users SET password_hash = %s WHERE email = %s",
+                "SELECT customer_id, email FROM customers WHERE email = %s AND is_active = 1",
+                (self.user_email,)
+            )
+            customer = cursor.fetchone()
+            
+            if not customer:
+                messagebox.showerror("Error", "Customer account not found or inactive")
+                return
+            
+            # Hash the new password
+            hashed_password = UtilityFunctions.hash_password(new_password)
+            
+            # Update the customer's password
+            cursor.execute(
+                "UPDATE customers SET password_hash = %s, updated_at = NOW() WHERE email = %s",
                 (hashed_password, self.user_email)
             )
+            
             if cursor.rowcount == 0:
-                messagebox.showerror("Error", "Failed to reset password. User not found.")
+                messagebox.showerror("Error", "Failed to reset password. Please try again.")
                 return
+                
             db_connection.commit()
-            messagebox.showinfo("Success", "Password reset successfully!")
+            
+            # Show success message with customer details
+            success_message = f"""
+            ✅ Password Reset Successful!
+            
+            Your BigBrew Coffee Shop account password has been updated.
+            
+            Account Details:
+            • Email: {self.user_email}
+            • Customer ID: {customer['customer_id']}
+            
+            You can now login with your new password.
+            """
+            
+            messagebox.showinfo("Success", success_message.strip())
             self.show_login_callback()
+            
+        except mysql.connector.Error as e:
+            messagebox.showerror("Database Error", f"Failed to reset password: {str(e)}")
+            try:
+                db_connection.rollback()
+            except:
+                pass
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to reset password: {str(e)}")
-            db_connection.rollback()
+            messagebox.showerror("Error", f"An unexpected error occurred: {str(e)}")
+            try:
+                db_connection.rollback()
+            except:
+                pass
         finally:
             if db_connection and db_connection.is_connected():
                 cursor.close()

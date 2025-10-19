@@ -102,7 +102,7 @@ class SignupWindow:
             bg="#FFF8E7",
             fg="#000716",
             highlightthickness=0,
-            show='*',
+            show='●',
             font=("Inter", 12)
         )
         self.entry_pass.place(x=63.0, y=220.0, width=229.0, height=38.0)
@@ -134,7 +134,7 @@ class SignupWindow:
             bg="#FFF8E7",
             fg="#000716",
             highlightthickness=0,
-            show='*',
+            show='●',
             font=("Inter", 12)
         )
         self.entry_confirmpass.place(x=64.0, y=271.0, width=229.0, height=38.0)
@@ -142,7 +142,7 @@ class SignupWindow:
         def toggle_entry_password(target_entry):
             """Toggle password visibility for target entry"""
             current = target_entry.cget('show')
-            target_entry.config(show='' if current == '*' else '*')
+            target_entry.config(show='' if current == '●' else '●')
 
         # Password visibility toggle
         button_image_eye_pass = self.load_image("button_eye.png")
@@ -251,7 +251,7 @@ class SignupWindow:
             entry.delete(0, 'end')
             entry.config(fg="#000716")
             if entry == self.entry_pass:
-                entry.config(show="*")
+                entry.config(show="●")
 
     def restore_placeholder(self, entry, placeholder_text):
         """Restore placeholder text when entry loses focus and is empty"""
@@ -392,6 +392,10 @@ class SignupWindow:
             # Store OTP in database for verification tracking
             from datetime import datetime, timedelta
             expires_at = datetime.now() + timedelta(minutes=3)
+            
+            # Clean up any existing OTP for this email and purpose
+            cursor.execute("DELETE FROM otp_verification WHERE email = %s AND purpose = %s", (email, 'signup'))
+            
             cursor.execute("""
                 INSERT INTO otp_verification (email, otp_code, purpose, expires_at)
                 VALUES (%s, %s, %s, %s)
@@ -424,7 +428,8 @@ class SignupWindow:
             self.otp_code, 
             self.complete_registration,
             self.show_login_callback,
-            self.get_db_connection
+            self.get_db_connection,
+            purpose='signup'
         )
 
     def complete_registration(self):

@@ -24,13 +24,14 @@ def relative_to_assets(path: str) -> Path:
 
 
 class OTPVerificationWindow:
-    def __init__(self, parent, user_data, otp_code, verification_callback, back_callback, get_db_connection):
+    def __init__(self, parent, user_data, otp_code, verification_callback, back_callback, get_db_connection, purpose='signup'):
         self.parent = parent
         self.user_data = user_data
         self.otp_code = otp_code
         self.verification_callback = verification_callback
         self.back_callback = back_callback
         self.get_db_connection = get_db_connection
+        self.purpose = purpose  # 'signup' or 'password_reset'
         self.otp_entries = []
         self.otp_expiry_time = time.time() + 180  # 3 minutes
         self._is_destroyed = False  # Track if window is destroyed
@@ -72,16 +73,18 @@ class OTPVerificationWindow:
         )
         
         # Title text
+        title_text = "Email Verification" if self.purpose == 'signup' else "Password Reset Verification"
         self.canvas.create_text(
             46.0, 85.0, anchor="nw",
-            text="Email Verification",
+            text=title_text,
             fill="#FFFFFF", font=("Inter Bold", 32 * -1)
         )
         
         # Instruction text
+        instruction_text = "Enter the 6-digit verification code sent to your email:" if self.purpose == 'signup' else "Enter the 6-digit verification code sent to your email for password reset:"
         self.canvas.create_text(
             91.0, 140.0, anchor="nw",
-            text="Enter the 6-digit verification code sent your email:",
+            text=instruction_text,
             fill="#FFFFFF", font=("Inter Bold", 13 * -1)
         )
         
@@ -295,9 +298,9 @@ class OTPVerificationWindow:
             cursor = db_connection.cursor(dictionary=True)
             cursor.execute("""
                 SELECT * FROM otp_verification 
-                WHERE email = %s AND otp_code = %s AND purpose = 'signup' 
+                WHERE email = %s AND otp_code = %s AND purpose = %s 
                 AND expires_at > NOW() AND is_used = FALSE
-            """, (self.user_data['email'], entered_otp))
+            """, (self.user_data['email'], entered_otp, self.purpose))
             
             otp_record = cursor.fetchone()
             
@@ -316,8 +319,8 @@ class OTPVerificationWindow:
                 # Check if OTP exists but is expired or used
                 cursor.execute("""
                     SELECT * FROM otp_verification 
-                    WHERE email = %s AND otp_code = %s AND purpose = 'signup'
-                """, (self.user_data['email'], entered_otp))
+                    WHERE email = %s AND otp_code = %s AND purpose = %s
+                """, (self.user_data['email'], entered_otp, self.purpose))
                 
                 existing_otp = cursor.fetchone()
                 if existing_otp:
