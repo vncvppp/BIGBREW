@@ -352,6 +352,17 @@ class SignupWindow:
             messagebox.showerror("Error", "Password must be at least 6 characters long")
             self.entry_pass.focus()
             return
+        
+        # Additional password strength validation
+        if not any(c.isupper() for c in password):
+            messagebox.showerror("Error", "Password must contain at least one uppercase letter")
+            self.entry_pass.focus()
+            return
+            
+        if not any(c.isdigit() for c in password):
+            messagebox.showerror("Error", "Password must contain at least one number")
+            self.entry_pass.focus()
+            return
 
         db_connection = self.get_db_connection()
         if not db_connection:
@@ -361,26 +372,42 @@ class SignupWindow:
         try:
             cursor = db_connection.cursor(dictionary=True)
 
-            # Check if email already exists in users table
-            cursor.execute("SELECT user_id FROM users WHERE email = %s", (email,))
+            # Check if email already exists in customers table
+            cursor.execute("SELECT customer_id FROM customers WHERE email = %s", (email,))
             if cursor.fetchone():
                 messagebox.showerror("Error", "Email already registered")
                 return
 
-            # Generate OTP and store temporary user data
+            # Generate OTP and store temporary customer data
             self.otp_code = UtilityFunctions.generate_otp()
             self.user_data = {
                 'email': email,
                 'password': password,
-                'username': email.split('@')[0]  # Use email prefix as username
+                'username': email.split('@')[0],  # Use email prefix as username
+                'first_name': 'Customer',  # Default values for required fields
+                'last_name': 'User',
+                'customer_type': 'regular'  # Default customer type
             }
+            
+            # Store OTP in database for verification tracking
+            from datetime import datetime, timedelta
+            expires_at = datetime.now() + timedelta(minutes=3)
+            cursor.execute("""
+                INSERT INTO otp_verification (email, otp_code, purpose, expires_at)
+                VALUES (%s, %s, %s, %s)
+            """, (email, self.otp_code, 'signup', expires_at))
 
             # Send OTP email
             email_service = EmailService()
-            if email_service.send_otp_email(email, self.otp_code):
-                self.show_otp_verification()
-            else:
-                messagebox.showerror("Error", "Failed to send OTP. Please try again.")
+            try:
+                if email_service.send_otp_email(email, self.otp_code):
+                    self.show_otp_verification()
+                else:
+                    messagebox.showerror("Error", "Failed to send OTP email. Please check your email configuration or try again later.")
+            except Exception as email_error:
+                print(f"Email sending error: {email_error}")
+                messagebox.showerror("Email Error", f"Failed to send verification email: {str(email_error)}")
+                return
 
         except mysql.connector.Error as e:
             messagebox.showerror("Database Error", f"Registration failed: {str(e)}")
@@ -424,32 +451,45 @@ class SignupWindow:
             # Start fresh transaction
             db_connection.start_transaction()
             
-            # Insert into users table (authentication)
+            # Generate unique customer code
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            customer_code = f"CUST-{timestamp}"
+            
+            # Insert into customers table - includes required fields from schema
             cursor.execute("""
-                INSERT INTO users (username, email, password_hash, user_type, is_active) 
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO customers (customer_code, username, email, password_hash, first_name, last_name, customer_type, is_active, is_verified, email_verified) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
+                customer_code,
                 self.user_data['username'],
                 self.user_data['email'],
                 hashed_password,
-                'cashier',  # Default user type for BigBrew POS
-                True
+                self.user_data.get('first_name', 'Customer'),  # Default first name
+                self.user_data.get('last_name', 'User'),  # Default last name
+                self.user_data.get('customer_type', 'regular'),  # Default customer type
+                True,
+                True,  # Mark as verified after OTP confirmation
+                True   # Mark email as verified
             ))
             
-            user_id = cursor.lastrowid
+            customer_id = cursor.lastrowid
             
             db_connection.commit()
             
             # Show success message
             success_message = f"""
-            Registration completed successfully!
+            🎉 Customer Registration completed successfully!
 
             Account Information:
+            • Customer Code: {customer_code}
             • Username: {self.user_data['username']}
             • Email: {self.user_data['email']}
-            • User Type: Cashier
+            • Customer Type: {self.user_data.get('customer_type', 'regular').title()}
+            • Status: Active & Verified
 
             You can now login using your username or email.
+            Welcome to BigBrew Coffee Shop!
             """
             
             messagebox.showinfo("Success", success_message.strip())

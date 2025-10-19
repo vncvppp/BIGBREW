@@ -118,7 +118,7 @@ class LoginWindow:
         self.password_entry.place(x=63.0, y=220.0, width=229.0, height=38.0)
         self.password_entry.bind('<Return>', lambda e: self.handle_login())
 
-        # Username entry
+        # Username/Email entry
         entry_image_username = self.load_image("entry_username.png")
         if entry_image_username:
             self.canvas.create_image(176.5, 188.0, image=entry_image_username)
@@ -132,6 +132,12 @@ class LoginWindow:
         )
         self.username_entry.place(x=62.0, y=168.0, width=229.0, height=38.0)
         self.username_entry.bind('<Return>', lambda e: self.password_entry.focus())
+        
+        # Add placeholder text for username/email field
+        self.username_entry.insert(0, "Username or Email")
+        self.username_entry.config(fg="#666666")
+        self.username_entry.bind('<FocusIn>', self.clear_username_placeholder)
+        self.username_entry.bind('<FocusOut>', self.restore_username_placeholder)
 
         # Eye toggle button
         self.show_password = False
@@ -188,6 +194,18 @@ class LoginWindow:
         self.show_password = not self.show_password
         self.password_entry.config(show="" if self.show_password else "*")
 
+    def clear_username_placeholder(self, event):
+        """Clear username placeholder when focused"""
+        if self.username_entry.get() == "Username or Email":
+            self.username_entry.delete(0, 'end')
+            self.username_entry.config(fg="#000716")
+
+    def restore_username_placeholder(self, event):
+        """Restore username placeholder when not focused and empty"""
+        if self.username_entry.get().strip() == "":
+            self.username_entry.insert(0, "Username or Email")
+            self.username_entry.config(fg="#666666")
+
     def on_forgot_password(self):
         """Handle forgot password"""
         messagebox.showinfo("Forgot Password", "Please contact your administrator to reset your password.")
@@ -201,25 +219,53 @@ class LoginWindow:
         username = self.username_entry.get().strip()
         password = self.password_entry.get()
 
+        # Remove placeholder text if present
+        if username == "Username or Email":
+            username = ""
+
         if not username or not password:
-            messagebox.showerror("Error", "Please enter both username and password")
+            messagebox.showerror("Error", "Please enter both username/email and password")
             return
 
         user = self.authenticate_user(username, password)
         if user:
-            db.update_last_login(user['user_id'])
+            # Update last login based on account type
+            if user.get('account_type') == 'staff':
+                db.update_last_login(user['user_id'])
+            elif user.get('account_type') == 'customer':
+                db.update_customer_last_login(user['customer_id'])
+            
             self.app.show_dashboard(user)
         else:
-            messagebox.showerror("Login Failed", "Invalid username or password, or account inactive")
+            messagebox.showerror("Login Failed", "Invalid username/email or password, or account inactive")
 
     def authenticate_user(self, username, password):
-        """Authenticate user credentials"""
+        """Authenticate user credentials - checks both users and customers tables"""
+        try:
+            # First try to authenticate as staff (users table)
+            user = self.authenticate_staff(username, password)
+            if user:
+                return user
+            
+            # If not found in users table, try customers table
+            customer = self.authenticate_customer(username, password)
+            if customer:
+                return customer
+            
+            return None
+            
+        except Exception as e:
+            messagebox.showerror("Database Error", f"Unable to connect to database: {str(e)}")
+            return None
+
+    def authenticate_staff(self, username, password):
+        """Authenticate staff user from users table"""
         try:
             user = db.get_user_by_username(username)
             if not user:
                 return None
             if not user['is_active']:
-                messagebox.showerror("Account Inactive", "Your account has been deactivated")
+                messagebox.showerror("Account Inactive", "Your staff account has been deactivated")
                 return None
 
             entered_bytes = password.encode('utf-8')
@@ -231,6 +277,8 @@ class LoginWindow:
             if is_bcrypt:
                 try:
                     if bcrypt.checkpw(entered_bytes, stored.encode('utf-8')):
+                        # Add user type for staff
+                        user['account_type'] = 'staff'
                         return user
                     return None
                 except ValueError as e:
@@ -247,10 +295,60 @@ class LoginWindow:
                         db.update_password_hash(user['user_id'], new_hash)
                     except Exception:
                         pass
+                    user['account_type'] = 'staff'
                     return user
                 return None
         except Exception as e:
-            messagebox.showerror("Database Error", f"Unable to connect to database: {str(e)}")
+            return None
+
+    def authenticate_customer(self, username, password):
+        """Authenticate customer from customers table"""
+        try:
+            # Try username first, then email
+            customer = db.get_customer_by_username(username)
+            if not customer:
+                # If not found by username, try email
+                customer = db.get_customer_by_email(username)
+            if not customer:
+                return None
+            if not customer['is_active']:
+                messagebox.showerror("Account Inactive", "Your customer account has been deactivated")
+                return None
+            if not customer['is_verified']:
+                messagebox.showerror("Account Not Verified", "Please verify your email address before logging in")
+                return None
+
+            entered_bytes = password.encode('utf-8')
+            stored = (customer['password_hash'] or '').strip()
+
+            # Determine if the stored hash is bcrypt
+            is_bcrypt = stored.startswith("$2a$") or stored.startswith("$2b$") or stored.startswith("$2y$")
+
+            if is_bcrypt:
+                try:
+                    if bcrypt.checkpw(entered_bytes, stored.encode('utf-8')):
+                        # Add account type for customer
+                        customer['account_type'] = 'customer'
+                        return customer
+                    return None
+                except ValueError as e:
+                    messagebox.showerror("Database Error", f"Stored password hash is invalid: {str(e)}")
+                    return None
+            else:
+                # Non-bcrypt path: support legacy SHA2(256) hex or plaintext
+                sha256_hex = hashlib.sha256(entered_bytes).hexdigest()
+
+                if stored.lower() == sha256_hex.lower() or stored == password:
+                    # Auto-upgrade to bcrypt
+                    try:
+                        new_hash = bcrypt.hashpw(entered_bytes, bcrypt.gensalt()).decode('utf-8')
+                        db.update_customer_password_hash(customer['customer_id'], new_hash)
+                    except Exception:
+                        pass
+                    customer['account_type'] = 'customer'
+                    return customer
+                return None
+        except Exception as e:
             return None
 
     def run(self):

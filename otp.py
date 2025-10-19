@@ -269,7 +269,7 @@ class OTPVerificationWindow:
         return ''.join(entry.get() for entry in self.otp_entries)
 
     def verify_otp(self):
-        """Verify the entered OTP"""
+        """Verify the entered OTP against database"""
         entered_otp = self.get_entered_otp()
         
         if time.time() > self.otp_expiry_time:
@@ -285,23 +285,83 @@ class OTPVerificationWindow:
                     break
             return
         
-        if entered_otp == self.otp_code:
-            messagebox.showinfo("Success", "OTP verified successfully!")
-            self.verification_callback()
-        else:
-            messagebox.showerror("Error", "Invalid OTP. Please try again.")
-            # Clear all fields and focus on first one
-            for entry in self.otp_entries:
-                entry.delete(0, 'end')
-            if self.otp_entries:
-                self.otp_entries[0].focus()
+        # Verify OTP against database
+        db_connection = self.get_db_connection()
+        if not db_connection:
+            messagebox.showerror("Database Error", "Cannot connect to database")
+            return
+            
+        try:
+            cursor = db_connection.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT * FROM otp_verification 
+                WHERE email = %s AND otp_code = %s AND purpose = 'signup' 
+                AND expires_at > NOW() AND is_used = FALSE
+            """, (self.user_data['email'], entered_otp))
+            
+            otp_record = cursor.fetchone()
+            
+            if otp_record:
+                # Mark OTP as used
+                cursor.execute("""
+                    UPDATE otp_verification 
+                    SET is_used = TRUE, attempts = attempts + 1 
+                    WHERE otp_id = %s
+                """, (otp_record['otp_id'],))
+                db_connection.commit()
+                
+                messagebox.showinfo("Success", "OTP verified successfully!")
+                self.verification_callback()
+            else:
+                # Check if OTP exists but is expired or used
+                cursor.execute("""
+                    SELECT * FROM otp_verification 
+                    WHERE email = %s AND otp_code = %s AND purpose = 'signup'
+                """, (self.user_data['email'], entered_otp))
+                
+                existing_otp = cursor.fetchone()
+                if existing_otp:
+                    if existing_otp['is_used']:
+                        messagebox.showerror("Error", "This OTP has already been used. Please request a new one.")
+                    else:
+                        messagebox.showerror("Error", "OTP has expired. Please request a new one.")
+                else:
+                    messagebox.showerror("Error", "Invalid OTP. Please try again.")
+                
+                # Clear all fields and focus on first one
+                for entry in self.otp_entries:
+                    entry.delete(0, 'end')
+                if self.otp_entries:
+                    self.otp_entries[0].focus()
+                    
+        except Exception as e:
+            messagebox.showerror("Error", f"Verification failed: {str(e)}")
+        finally:
+            if db_connection and db_connection.is_connected():
+                cursor.close()
 
     def resend_otp(self):
         """Resend OTP code"""
         from utils import UtilityFunctions, EmailService
+        from datetime import datetime, timedelta
         
         self.otp_code = UtilityFunctions.generate_otp()
         self.otp_expiry_time = time.time() + 180  # Reset to 3 minutes
+        
+        # Store new OTP in database
+        db_connection = self.get_db_connection()
+        if db_connection:
+            try:
+                cursor = db_connection.cursor()
+                expires_at = datetime.now() + timedelta(minutes=3)
+                cursor.execute("""
+                    INSERT INTO otp_verification (email, otp_code, purpose, expires_at)
+                    VALUES (%s, %s, %s, %s)
+                """, (self.user_data['email'], self.otp_code, 'signup', expires_at))
+                db_connection.commit()
+                cursor.close()
+            except Exception as e:
+                print(f"Error storing OTP in database: {e}")
         
         # Clear OTP entries
         for entry in self.otp_entries:

@@ -94,5 +94,37 @@ class DatabaseConfig:
         query = "UPDATE users SET password_hash = %s, updated_at = CURRENT_TIMESTAMP WHERE user_id = %s"
         return self.execute_query(query, (password_hash, user_id))
 
+    def get_customer_by_username(self, username):
+        """Get customer information by username"""
+        query = """
+        SELECT customer_id, customer_code, username, email, password_hash, customer_type, 
+               first_name, last_name, is_active, is_verified, email_verified, loyalty_points, total_spent
+        FROM customers 
+        WHERE username = %s
+        """
+        result = self.execute_query(query, (username,), fetch=True)
+        return result[0] if result else None
+    
+    def get_customer_by_email(self, email):
+        """Get customer information by email"""
+        query = """
+        SELECT customer_id, customer_code, username, email, password_hash, customer_type, 
+               first_name, last_name, is_active, is_verified, email_verified, loyalty_points, total_spent
+        FROM customers 
+        WHERE email = %s
+        """
+        result = self.execute_query(query, (email,), fetch=True)
+        return result[0] if result else None
+    
+    def update_customer_last_login(self, customer_id):
+        """Update last_order_date timestamp for customer (using as last login)"""
+        query = "UPDATE customers SET last_order_date = CURRENT_TIMESTAMP WHERE customer_id = %s"
+        return self.execute_query(query, (customer_id,))
+
+    def update_customer_password_hash(self, customer_id, password_hash):
+        """Persist a new bcrypt password hash for the given customer"""
+        query = "UPDATE customers SET password_hash = %s, updated_at = CURRENT_TIMESTAMP WHERE customer_id = %s"
+        return self.execute_query(query, (password_hash, customer_id))
+
 # Global database instance
 db = DatabaseConfig()

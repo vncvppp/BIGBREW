@@ -221,14 +221,43 @@ class BigBrewApp:
         PasswordResetWindow(self.root, user_email, self.show_login, self.get_db_connection)
 
     def show_dashboard(self, user_data):
-        """Show dashboard after successful login"""
+        """Show appropriate dashboard based on account type"""
         try:
-            from admin_dashboard import DashboardFactory
-            self.cleanup_current_module()
-            dashboard = DashboardFactory(user_data, self)
-            dashboard.show_dashboard()
+            # Check if this is a customer account
+            if user_data.get('account_type') == 'customer':
+                self.show_customer_home(user_data)
+            else:
+                # Staff account - show admin dashboard
+                from admin_dashboard import DashboardFactory
+                self.cleanup_current_module()
+                dashboard = DashboardFactory(user_data, self)
+                dashboard.show_dashboard()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to open Dashboard: {str(e)}")
+
+    def show_customer_home(self, customer_data):
+        """Show customer home page"""
+        print("Showing customer home...")  # Debug
+        self.clear_window()
+
+        # Resize window for customer home
+        self.root.geometry("1000x700")
+        self.center_window(1000, 700)
+        self.root.minsize(1000, 700)
+        self.root.resizable(False, False)
+
+        # Give time for window to resize
+        self.root.update_idletasks()
+        self.root.update()
+
+        # Create customer home
+        try:
+            from home import CustomerHome
+            self.current_module = CustomerHome(self.root, customer_data, self)
+        except ImportError as e:
+            messagebox.showerror("Error", f"Customer home module not available: {str(e)}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to open Customer Home: {str(e)}")
 
     def login_success_callback(self, user_data, user_type):
         """Callback after successful login - redirect based on user type"""

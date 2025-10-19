@@ -87,34 +87,36 @@ class EmailService:
                 return self._fallback_otp_email(to_email, otp_code, "SIMULATION")
             
             # Create message
-            subject = "PDM Document System - OTP Verification"
+            subject = "BigBrew Coffee Shop - Customer Account Verification"
             body = f"""
             <html>
             <body style="font-family: Arial, sans-serif; line-height: 1.6;">
                 <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
-                    <div style="text-align: center; background: #800000; padding: 20px; border-radius: 10px 10px 0 0;">
-                        <h1 style="color: #FFD700; margin: 0;">PAMBAYANG DALUBHASAAN NG MARILAO</h1>
-                        <h2 style="color: white; margin: 10px 0 0 0;">Document Request System</h2>
+                    <div style="text-align: center; background: #8B4513; padding: 20px; border-radius: 10px 10px 0 0;">
+                        <h1 style="color: #DAA520; margin: 0;">BIGBREW COFFEE SHOP</h1>
+                        <h2 style="color: white; margin: 10px 0 0 0;">POS Management System</h2>
                     </div>
                     
                     <div style="padding: 30px;">
-                        <h2 style="color: #800000;">OTP Verification Code</h2>
-                        <p>Dear User,</p>
-                        <p>Your One-Time Password (OTP) for account verification is:</p>
+                        <h2 style="color: #8B4513;">OTP Verification Code</h2>
+                        <p>Dear Valued Customer,</p>
+                        <p>Welcome to BigBrew Coffee Shop! Your One-Time Password (OTP) for account verification is:</p>
                         
                         <div style="text-align: center; margin: 30px 0;">
-                            <span style="font-size: 32px; font-weight: bold; color: #800000; 
-                                       background: #f5f5f5; padding: 15px 30px; 
-                                       border-radius: 5px; letter-spacing: 5px;">
+                            <span style="font-size: 32px; font-weight: bold; color: #8B4513; 
+                                       background: #FFF8DC; padding: 15px 30px; 
+                                       border-radius: 5px; letter-spacing: 5px; border: 2px solid #DAA520;">
                                 {otp_code}
                             </span>
                         </div>
                         
-                        <p>This OTP will expire in 3 minutes.</p>
-                        <p>If you did not request this verification, please ignore this email.</p>
+                        <p><strong>This OTP will expire in 3 minutes.</strong></p>
+                        <p>After verification, you'll have access to your BigBrew customer account with loyalty rewards and online ordering.</p>
+                        <p>If you did not request this verification, please contact our support team immediately.</p>
                         
-                        <hr style="margin: 30px 0;">
-                        <p style="color: #666; font-size: 12px;">
+                        <hr style="margin: 30px 0; border-color: #DAA520;">
+                        <p style="color: #8B4513; font-size: 12px; text-align: center;">
+                            <strong>BigBrew Coffee Shop</strong><br>
                             This is an automated message. Please do not reply to this email.
                         </p>
                     </div>
@@ -142,7 +144,7 @@ class EmailService:
         try:
             # Create message
             msg = MIMEMultipart()
-            msg['From'] = f"PDM Document System <{self.email_address}>"
+            msg['From'] = f"BigBrew Coffee Shop <{self.email_address}>"
             msg['To'] = to_email
             msg['Subject'] = subject
             
@@ -175,7 +177,7 @@ class EmailService:
             
             # Create message
             msg = MIMEMultipart()
-            msg['From'] = f"PDM Document System <{self.email_address}>"
+            msg['From'] = f"BigBrew Coffee Shop <{self.email_address}>"
             msg['To'] = to_email
             msg['Subject'] = subject
             
