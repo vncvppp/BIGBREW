@@ -24,10 +24,11 @@ def resource_path(relative_path):
 def relative_to_assets(path: str) -> Path:
     """Get path to assets in the customer home resources folder"""
     possible_paths = [
-        resource_path(f"resources/home/{path}"),
-        resource_path(f"home/resources/{path}"),
         os.path.join(OUTPUT_PATH, "resources", "home", path),
         os.path.join(OUTPUT_PATH, "home", "resources", path),
+        resource_path(f"resources/home/{path}"),
+        resource_path(f"home/resources/{path}"),
+        os.path.join(OUTPUT_PATH, path),
         resource_path(path),
     ]
     
@@ -65,7 +66,7 @@ class CustomerHome:
             if not image_path.exists():
                 print(f"Image not found: {image_path}")
                 return None
-            photo_image = tk.PhotoImage(file=image_path)
+            photo_image = tk.PhotoImage(file=str(image_path))
             self.images.append(photo_image)
             return photo_image
         except Exception as e:
@@ -78,312 +79,549 @@ class CustomerHome:
         for widget in self.parent.winfo_children():
             widget.destroy()
         
-        # Create main frame
-        self.main_frame = tk.Frame(self.parent, bg="#FFF8E7")
-        self.main_frame.pack(fill=tk.BOTH, expand=True)
+        # Configure parent window
+        self.parent.configure(bg="#FFFFFF")
+        self.parent.geometry("1035x534")
         
-        # Header section
-        self.create_header()
-        
-        # Main content area
-        self.create_content_area()
-        
-        # Footer
-        self.create_footer()
-    
-    def create_header(self):
-        """Create the header section"""
-        header_frame = tk.Frame(self.main_frame, bg="#8B4513", height=80)
-        header_frame.pack(fill=tk.X, padx=0, pady=0)
-        header_frame.pack_propagate(False)
-        
-        # BigBrew logo/title
-        title_label = tk.Label(
-            header_frame,
-            text="BIGBREW COFFEE SHOP",
-            font=("Inter Bold", 24),
-            fg="#DAA520",
-            bg="#8B4513"
+        # Create canvas
+        self.canvas = tk.Canvas(
+            self.parent,
+            bg="#FFFFFF",
+            height=534,
+            width=1035,
+            bd=0,
+            highlightthickness=0,
+            relief="ridge"
         )
-        title_label.pack(side=tk.LEFT, padx=20, pady=20)
+        self.canvas.place(x=0, y=0)
         
-        # Customer info
-        customer_info_frame = tk.Frame(header_frame, bg="#8B4513")
-        customer_info_frame.pack(side=tk.RIGHT, padx=20, pady=20)
+        # Draw the UI elements
+        self.draw_background()
+        self.draw_header()
+        self.draw_account_info()
+        self.draw_feature_cards()
+        self.draw_buttons()
+    
+    def draw_background(self):
+        """Draw background elements"""
+        # Background image (optional - can be removed if image doesn't exist)
+        try:
+            bg_image = self.load_image("image_1.png")
+            if bg_image:
+                self.canvas.create_image(517.0, 267.0, image=bg_image)
+        except:
+            pass
         
-        welcome_label = tk.Label(
-            customer_info_frame,
+        # Header background
+        self.canvas.create_rectangle(
+            0.0, 0.0, 1035.0, 58.0,
+            fill="#B96708",
+            outline=""
+        )
+        
+        # Logo
+        try:
+            logo_image = self.load_image("logo.png")
+            if logo_image:
+                self.canvas.create_image(85.0, 29.0, image=logo_image)
+        except:
+            pass
+        
+        # Main content background
+        self.canvas.create_rectangle(
+            0.0, 58.0, 1035.0, 534.0,
+            fill="#EFE8D8",
+            outline=""
+        )
+    
+    def draw_header(self):
+        """Draw header elements"""
+        # Welcome text
+        self.canvas.create_text(
+            716.0, 8.0,
+            anchor="nw",
             text=f"Welcome, {self.first_name}!",
-            font=("Inter", 14),
-            fg="#FFFFFF",
-            bg="#8B4513"
+            fill="#FFFFFF",
+            font=("Poppins SemiBold", 16 * -1)
         )
-        welcome_label.pack(anchor=tk.E)
         
-        customer_type_label = tk.Label(
-            customer_info_frame,
-            text=f"{self.customer_type.title()} Member",
-            font=("Inter", 10),
-            fg="#DAA520",
-            bg="#8B4513"
+        # Member type
+        member_type_text = f"{self.customer_type.title()} Member"
+        self.canvas.create_text(
+            780.0, 31.0,
+            anchor="nw",
+            text=member_type_text,
+            fill="#EFE8D8",
+            font=("Poppins Regular", 13 * -1)
         )
-        customer_type_label.pack(anchor=tk.E)
         
-        # Logout button
-        logout_btn = tk.Button(
-            header_frame,
-            text="Logout",
-            font=("Inter", 10),
-            bg="#D2691E",
-            fg="#FFFFFF",
-            relief=tk.FLAT,
-            command=self.logout,
-            cursor="hand2"
+    def draw_account_info(self):
+        """Draw account information sidebar"""
+        # Account info box
+        self.canvas.create_rectangle(
+            27.0, 88.0, 312.0, 512.0,
+            fill="#FFF8E7",
+            outline=""
         )
-        logout_btn.pack(side=tk.RIGHT, padx=10, pady=20)
-    
-    def create_content_area(self):
-        """Create the main content area"""
-        content_frame = tk.Frame(self.main_frame, bg="#FFF8E7")
-        content_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
         
-        # Left sidebar - Account info
-        self.create_sidebar(content_frame)
-        
-        # Right main area - Features
-        self.create_main_area(content_frame)
-    
-    def create_sidebar(self, parent):
-        """Create the left sidebar with account information"""
-        sidebar_frame = tk.Frame(parent, bg="#F5F5DC", width=300, relief=tk.RAISED, bd=1)
-        sidebar_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 20))
-        sidebar_frame.pack_propagate(False)
-        
-        # Account info title
-        account_title = tk.Label(
-            sidebar_frame,
+        # Account Information title
+        self.canvas.create_text(
+            72.8, 108.1,
+            anchor="nw",
             text="Account Information",
-            font=("Inter Bold", 16),
-            fg="#8B4513",
-            bg="#F5F5DC"
+            fill="#3A280F",
+            font=("Poppins ExtraBold", 16 * -1)
         )
-        account_title.pack(pady=20)
-        
-        # Account details
-        details_frame = tk.Frame(sidebar_frame, bg="#F5F5DC")
-        details_frame.pack(fill=tk.X, padx=20, pady=10)
         
         # Customer code
-        tk.Label(details_frame, text="Customer Code:", font=("Inter", 10), fg="#8B4513", bg="#F5F5DC").pack(anchor=tk.W)
-        tk.Label(details_frame, text=self.customer_code, font=("Inter Bold", 10), fg="#000000", bg="#F5F5DC").pack(anchor=tk.W, pady=(0, 10))
+        self.canvas.create_text(
+            58.6, 157.9,
+            anchor="nw",
+            text="Customer Code:",
+            fill="#B96708",
+            font=("Poppins Regular", 11 * -1)
+        )
+        self.canvas.create_text(
+            58.6, 175.1,
+            anchor="nw",
+            text=self.customer_code,
+            fill="#000000",
+            font=("Poppins Regular", 13 * -1)
+        )
         
         # Email
-        tk.Label(details_frame, text="Email:", font=("Inter", 10), fg="#8B4513", bg="#F5F5DC").pack(anchor=tk.W)
-        tk.Label(details_frame, text=self.email, font=("Inter Bold", 10), fg="#000000", bg="#F5F5DC").pack(anchor=tk.W, pady=(0, 10))
+        self.canvas.create_text(
+            58.6, 216.3,
+            anchor="nw",
+            text="Email Address:",
+            fill="#B96708",
+            font=("Poppins Regular", 11 * -1)
+        )
+        self.canvas.create_text(
+            58.6, 237.3,
+            anchor="nw",
+            text=self.email,
+            fill="#000000",
+            font=("Poppins Regular", 13 * -1)
+        )
         
-        # Customer type
-        tk.Label(details_frame, text="Member Type:", font=("Inter", 10), fg="#8B4513", bg="#F5F5DC").pack(anchor=tk.W)
-        tk.Label(details_frame, text=self.customer_type.title(), font=("Inter Bold", 10), fg="#000000", bg="#F5F5DC").pack(anchor=tk.W, pady=(0, 10))
+        # Member type
+        self.canvas.create_text(
+            57.5, 272.7,
+            anchor="nw",
+            text="Member Type:",
+            fill="#B96708",
+            font=("Poppins Regular", 11 * -1)
+        )
+        self.canvas.create_text(
+            57.5, 290.0,
+            anchor="nw",
+            text=self.customer_type.upper(),
+            fill="#000000",
+            font=("Poppins Regular", 13 * -1)
+        )
         
-        # Loyalty points
-        tk.Label(details_frame, text="Loyalty Points:", font=("Inter", 10), fg="#8B4513", bg="#F5F5DC").pack(anchor=tk.W)
-        tk.Label(details_frame, text=f"{self.loyalty_points:,}", font=("Inter Bold", 12), fg="#DAA520", bg="#F5F5DC").pack(anchor=tk.W, pady=(0, 10))
+        # Total points
+        self.canvas.create_text(
+            57.5, 331.1,
+            anchor="nw",
+            text="Total Points:",
+            fill="#B96708",
+            font=("Poppins Regular", 11 * -1)
+        )
+        self.canvas.create_text(
+            57.5, 348.3,
+            anchor="nw",
+            text=f"{self.loyalty_points:,}",
+            fill="#000000",
+            font=("Poppins Regular", 13 * -1)
+        )
         
         # Total spent
-        tk.Label(details_frame, text="Total Spent:", font=("Inter", 10), fg="#8B4513", bg="#F5F5DC").pack(anchor=tk.W)
-        tk.Label(details_frame, text=f"₱{self.total_spent:.2f}", font=("Inter Bold", 12), fg="#8B4513", bg="#F5F5DC").pack(anchor=tk.W, pady=(0, 20))
-        
-        # Account actions
-        actions_frame = tk.Frame(sidebar_frame, bg="#F5F5DC")
-        actions_frame.pack(fill=tk.X, padx=20, pady=20)
-        
-        tk.Button(
-            actions_frame,
-            text="Edit Profile",
-            font=("Inter", 10),
-            bg="#8B4513",
-            fg="#FFFFFF",
-            relief=tk.FLAT,
-            command=self.edit_profile,
-            cursor="hand2"
-        ).pack(fill=tk.X, pady=5)
-        
-        tk.Button(
-            actions_frame,
-            text="Order History",
-            font=("Inter", 10),
-            bg="#D2691E",
-            fg="#FFFFFF",
-            relief=tk.FLAT,
-            command=self.view_order_history,
-            cursor="hand2"
-        ).pack(fill=tk.X, pady=5)
+        self.canvas.create_text(
+            57.5, 381.8,
+            anchor="nw",
+            text="Total Spent:",
+            fill="#B96708",
+            font=("Poppins Regular", 11 * -1)
+        )
+        self.canvas.create_text(
+            57.5, 399.1,
+            anchor="nw",
+            text=f"₱{self.total_spent:.2f}",
+            fill="#B45309",
+            font=("Inter", 13 * -1)
+        )
     
-    def create_main_area(self, parent):
-        """Create the main area with features"""
-        main_area_frame = tk.Frame(parent, bg="#FFF8E7")
-        main_area_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+    def draw_feature_cards(self):
+        """Draw feature cards"""
+        # Main title
+        self.canvas.create_text(
+            349.0, 80.0,
+            anchor="nw",
+            text="READY TO SIP INTO YOUR FUTURE?",
+            fill="#3A280F",
+            font=("Poppins ExtraBold", 24 * -1)
+        )
         
-        # Welcome message
-        welcome_frame = tk.Frame(main_area_frame, bg="#FFF8E7")
-        welcome_frame.pack(fill=tk.X, pady=(0, 20))
+        self.canvas.create_text(
+            349.0, 113.0,
+            anchor="nw",
+            text="Brew Success with Big Brew.",
+            fill="#000000",
+            font=("Poppins Regular", 13 * -1)
+        )
         
-        welcome_text = f"Welcome to BigBrew Coffee Shop, {self.first_name}!"
-        tk.Label(
-            welcome_frame,
-            text=welcome_text,
-            font=("Inter Bold", 18),
-            fg="#8B4513",
-            bg="#FFF8E7"
-        ).pack(anchor=tk.W)
+        # Card 1 - Online Ordering
+        self.canvas.create_rectangle(
+            349.0, 143.0, 541.0, 512.0,
+            fill="#FFF8E7",
+            outline=""
+        )
         
-        tk.Label(
-            welcome_frame,
-            text="Discover our premium coffee blends and delicious pastries",
-            font=("Inter", 12),
-            fg="#666666",
-            bg="#FFF8E7"
-        ).pack(anchor=tk.W, pady=(5, 0))
+        try:
+            coffee_img = self.load_image("coffee.png")
+            if coffee_img:
+                self.canvas.create_image(445.0, 232.0, image=coffee_img)
+        except:
+            pass
         
-        # Features grid
-        features_frame = tk.Frame(main_area_frame, bg="#FFF8E7")
-        features_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # Feature buttons
-        self.create_feature_buttons(features_frame)
-    
-    def create_feature_buttons(self, parent):
-        """Create feature buttons in a grid layout"""
-        # Online Ordering
-        order_frame = tk.Frame(parent, bg="#FFFFFF", relief=tk.RAISED, bd=2)
-        order_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        tk.Label(
-            order_frame,
-            text="☕",
-            font=("Arial", 48),
-            fg="#8B4513",
-            bg="#FFFFFF"
-        ).pack(pady=20)
-        
-        tk.Label(
-            order_frame,
+        self.canvas.create_text(
+            366.0, 263.0,
+            anchor="nw",
             text="Online Ordering",
-            font=("Inter Bold", 16),
-            fg="#8B4513",
-            bg="#FFFFFF"
-        ).pack()
+            fill="#000000",
+            font=("Poppins SemiBold", 20 * -1)
+        )
         
-        tk.Label(
-            order_frame,
-            text="Order your favorite coffee\nand pastries online",
-            font=("Inter", 10),
-            fg="#666666",
-            bg="#FFFFFF"
-        ).pack(pady=10)
+        self.canvas.create_text(
+            364.0, 305.0,
+            anchor="nw",
+            text="Order Your Favorite Milk ",
+            fill="#999999",
+            font=("Poppins Regular", 13 * -1)
+        )
         
-        tk.Button(
-            order_frame,
-            text="Order Now",
-            font=("Inter", 12),
-            bg="#8B4513",
-            fg="#FFFFFF",
-            relief=tk.FLAT,
-            command=self.start_online_order,
-            cursor="hand2"
-        ).pack(pady=20)
+        self.canvas.create_text(
+            364.0, 330.0,
+            anchor="nw",
+            text="Tea, Praf, Coffee, Fruit ",
+            fill="#999999",
+            font=("Poppins Regular", 13 * -1)
+        )
         
-        # Loyalty Rewards
-        rewards_frame = tk.Frame(parent, bg="#FFFFFF", relief=tk.RAISED, bd=2)
-        rewards_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.canvas.create_text(
+            364.0, 355.0,
+            anchor="nw",
+            text="Tea or Brosty Online.",
+            fill="#999999",
+            font=("Poppins Regular", 13 * -1)
+        )
         
-        tk.Label(
-            rewards_frame,
-            text="🎁",
-            font=("Arial", 48),
-            fg="#DAA520",
-            bg="#FFFFFF"
-        ).pack(pady=20)
+        # Card 2 - Loyalty Rewards
+        self.canvas.create_rectangle(
+            576.0, 143.0, 768.0, 512.0,
+            fill="#FFF8E7",
+            outline=""
+        )
         
-        tk.Label(
-            rewards_frame,
+        try:
+            gift_img = self.load_image("gift.png")
+            if gift_img:
+                self.canvas.create_image(672.0, 233.0, image=gift_img)
+        except:
+            pass
+        
+        self.canvas.create_text(
+            591.0, 264.0,
+            anchor="nw",
             text="Loyalty Rewards",
-            font=("Inter Bold", 16),
-            fg="#8B4513",
-            bg="#FFFFFF"
-        ).pack()
+            fill="#000000",
+            font=("Poppins SemiBold", 20 * -1)
+        )
         
-        tk.Label(
-            rewards_frame,
-            text=f"Earn points with every purchase\nCurrent points: {self.loyalty_points:,}",
-            font=("Inter", 10),
-            fg="#666666",
-            bg="#FFFFFF"
-        ).pack(pady=10)
+        self.canvas.create_text(
+            594.0, 301.0,
+            anchor="nw",
+            text="Earn points with every ",
+            fill="#999999",
+            font=("Poppins Regular", 13 * -1)
+        )
         
-        tk.Button(
-            rewards_frame,
-            text="View Rewards",
-            font=("Inter", 12),
-            bg="#DAA520",
-            fg="#FFFFFF",
-            relief=tk.FLAT,
-            command=self.view_rewards,
-            cursor="hand2"
-        ).pack(pady=20)
+        self.canvas.create_text(
+            594.0, 325.0,
+            anchor="nw",
+            text="purchase.",
+            fill="#999999",
+            font=("Poppins Regular", 13 * -1)
+        )
         
-        # Store Locator
-        store_frame = tk.Frame(parent, bg="#FFFFFF", relief=tk.RAISED, bd=2)
-        store_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # Card 3 - Store Locator
+        self.canvas.create_rectangle(
+            796.0, 143.0, 988.0, 512.0,
+            fill="#FFF8E7",
+            outline=""
+        )
         
-        tk.Label(
-            store_frame,
-            text="📍",
-            font=("Arial", 48),
-            fg="#D2691E",
-            bg="#FFFFFF"
-        ).pack(pady=20)
+        try:
+            loc_img = self.load_image("loc.png")
+            if loc_img:
+                self.canvas.create_image(892.0, 235.0, image=loc_img)
+        except:
+            pass
         
-        tk.Label(
-            store_frame,
+        self.canvas.create_text(
+            824.0, 265.0,
+            anchor="nw",
             text="Store Locator",
-            font=("Inter Bold", 16),
-            fg="#8B4513",
-            bg="#FFFFFF"
-        ).pack()
+            fill="#000000",
+            font=("Poppins SemiBold", 20 * -1)
+        )
         
-        tk.Label(
-            store_frame,
-            text="Find BigBrew locations\nnear you",
-            font=("Inter", 10),
-            fg="#666666",
-            bg="#FFFFFF"
-        ).pack(pady=10)
+        self.canvas.create_text(
+            810.0, 300.0,
+            anchor="nw",
+            text="Find Big Brew locations ",
+            fill="#999999",
+            font=("Poppins Regular", 13 * -1)
+        )
         
-        tk.Button(
-            store_frame,
-            text="Find Stores",
-            font=("Inter", 12),
-            bg="#D2691E",
-            fg="#FFFFFF",
-            relief=tk.FLAT,
-            command=self.find_stores,
-            cursor="hand2"
-        ).pack(pady=20)
+        self.canvas.create_text(
+            810.0, 325.0,
+            anchor="nw",
+            text="near you.",
+            fill="#999999",
+            font=("Poppins Regular", 13 * -1)
+        )
     
-    def create_footer(self):
-        """Create the footer section"""
-        footer_frame = tk.Frame(self.main_frame, bg="#8B4513", height=40)
-        footer_frame.pack(fill=tk.X, side=tk.BOTTOM)
-        footer_frame.pack_propagate(False)
+    def draw_buttons(self):
+        """Draw buttons"""
+        # Order Now button
+        try:
+            order_btn_img = self.load_image("button_order_now.png")
+            if order_btn_img:
+                self.order_btn = tk.Button(
+                    image=order_btn_img,
+                    borderwidth=0,
+                    highlightthickness=0,
+                    command=self.start_online_order,
+                    relief="flat"
+                )
+                self.order_btn.place(x=379.0, y=450.0, width=131.0, height=40.0)
+            else:
+                # Fallback to text button
+                self.order_btn = tk.Button(
+                    self.parent,
+                    text="Order Now",
+                    font=("Poppins", 12),
+                    bg="#B96708",
+                    fg="#FFFFFF",
+                    relief="flat",
+                    command=self.start_online_order,
+                    cursor="hand2"
+                )
+                self.order_btn.place(x=379.0, y=450.0, width=131.0, height=40.0)
+        except:
+            # Fallback to text button
+            self.order_btn = tk.Button(
+                self.parent,
+                text="Order Now",
+                font=("Poppins", 12),
+                bg="#B96708",
+                fg="#FFFFFF",
+                relief="flat",
+                command=self.start_online_order,
+                cursor="hand2"
+            )
+            self.order_btn.place(x=379.0, y=450.0, width=131.0, height=40.0)
         
-        tk.Label(
-            footer_frame,
-            text="© 2024 BigBrew Coffee Shop - Customer Portal",
-            font=("Inter", 10),
-            fg="#DAA520",
-            bg="#8B4513"
-        ).pack(pady=10)
+        # View Rewards button
+        try:
+            rewards_btn_img = self.load_image("button_vw_rewards.png")
+            if rewards_btn_img:
+                self.rewards_btn = tk.Button(
+                    image=rewards_btn_img,
+                    borderwidth=0,
+                    highlightthickness=0,
+                    command=self.view_rewards,
+                    relief="flat"
+                )
+                self.rewards_btn.place(x=603.0, y=450.0, width=138.0, height=40.0)
+            else:
+                self.rewards_btn = tk.Button(
+                    self.parent,
+                    text="View Rewards",
+                    font=("Poppins", 12),
+                    bg="#B96708",
+                    fg="#FFFFFF",
+                    relief="flat",
+                    command=self.view_rewards,
+                    cursor="hand2"
+                )
+                self.rewards_btn.place(x=603.0, y=450.0, width=138.0, height=40.0)
+        except:
+            self.rewards_btn = tk.Button(
+                self.parent,
+                text="View Rewards",
+                font=("Poppins", 12),
+                bg="#B96708",
+                fg="#FFFFFF",
+                relief="flat",
+                command=self.view_rewards,
+                cursor="hand2"
+            )
+            self.rewards_btn.place(x=603.0, y=450.0, width=138.0, height=40.0)
+        
+        # Store Locator button
+        try:
+            store_btn_img = self.load_image("button_store_loc.png")
+            if store_btn_img:
+                self.store_btn = tk.Button(
+                    image=store_btn_img,
+                    borderwidth=0,
+                    highlightthickness=0,
+                    command=self.find_stores,
+                    relief="flat"
+                )
+                self.store_btn.place(x=830.0, y=450.0, width=131.0, height=40.0)
+            else:
+                self.store_btn = tk.Button(
+                    self.parent,
+                    text="Find Stores",
+                    font=("Poppins", 12),
+                    bg="#B96708",
+                    fg="#FFFFFF",
+                    relief="flat",
+                    command=self.find_stores,
+                    cursor="hand2"
+                )
+                self.store_btn.place(x=830.0, y=450.0, width=131.0, height=40.0)
+        except:
+            self.store_btn = tk.Button(
+                self.parent,
+                text="Find Stores",
+                font=("Poppins", 12),
+                bg="#B96708",
+                fg="#FFFFFF",
+                relief="flat",
+                command=self.find_stores,
+                cursor="hand2"
+            )
+            self.store_btn.place(x=830.0, y=450.0, width=131.0, height=40.0)
+        
+        # Edit Profile button
+        try:
+            edit_btn_img = self.load_image("button_edit_prof.png")
+            if edit_btn_img:
+                self.edit_btn = tk.Button(
+                    image=edit_btn_img,
+                    borderwidth=0,
+                    highlightthickness=0,
+                    command=self.edit_profile,
+                    relief="flat"
+                )
+                self.edit_btn.place(x=58.6, y=428.7, width=231.1, height=30.6)
+            else:
+                self.edit_btn = tk.Button(
+                    self.parent,
+                    text="Edit Profile",
+                    font=("Poppins", 10),
+                    bg="#B96708",
+                    fg="#FFFFFF",
+                    relief="flat",
+                    command=self.edit_profile,
+                    cursor="hand2"
+                )
+                self.edit_btn.place(x=58.6, y=428.7, width=231.1, height=30.6)
+        except:
+            self.edit_btn = tk.Button(
+                self.parent,
+                text="Edit Profile",
+                font=("Poppins", 10),
+                bg="#B96708",
+                fg="#FFFFFF",
+                relief="flat",
+                command=self.edit_profile,
+                cursor="hand2"
+            )
+            self.edit_btn.place(x=58.6, y=428.7, width=231.1, height=30.6)
+        
+        # Order History button
+        try:
+            # Try both possible filenames
+            history_btn_img = self.load_image("button_order_history.png")
+            if not history_btn_img:
+                history_btn_img = self.load_image("button_order_historypng")
+            if history_btn_img:
+                self.history_btn = tk.Button(
+                    image=history_btn_img,
+                    borderwidth=0,
+                    highlightthickness=0,
+                    command=self.view_order_history,
+                    relief="flat"
+                )
+                self.history_btn.place(x=58.6, y=468.0, width=231.1, height=29.7)
+            else:
+                self.history_btn = tk.Button(
+                    self.parent,
+                    text="Order History",
+                    font=("Poppins", 10),
+                    bg="#B96708",
+                    fg="#FFFFFF",
+                    relief="flat",
+                    command=self.view_order_history,
+                    cursor="hand2"
+                )
+                self.history_btn.place(x=58.6, y=468.0, width=231.1, height=29.7)
+        except:
+            self.history_btn = tk.Button(
+                self.parent,
+                text="Order History",
+                font=("Poppins", 10),
+                bg="#B96708",
+                fg="#FFFFFF",
+                relief="flat",
+                command=self.view_order_history,
+                cursor="hand2"
+            )
+            self.history_btn.place(x=58.6, y=468.0, width=231.1, height=29.7)
+        
+        # Logout button
+        try:
+            logout_btn_img = self.load_image("button_logout.png")
+            if logout_btn_img:
+                self.logout_btn = tk.Button(
+                    image=logout_btn_img,
+                    borderwidth=0,
+                    highlightthickness=0,
+                    command=self.logout,
+                    relief="flat"
+                )
+                self.logout_btn.place(x=909.0, y=14.0, width=85.0, height=30.0)
+            else:
+                self.logout_btn = tk.Button(
+                    self.parent,
+                    text="Logout",
+                    font=("Poppins", 10),
+                    bg="#D2691E",
+                    fg="#FFFFFF",
+                    relief="flat",
+                    command=self.logout,
+                    cursor="hand2"
+                )
+                self.logout_btn.place(x=909.0, y=14.0, width=85.0, height=30.0)
+        except:
+            self.logout_btn = tk.Button(
+                self.parent,
+                text="Logout",
+                font=("Poppins", 10),
+                bg="#D2691E",
+                fg="#FFFFFF",
+                relief="flat",
+                command=self.logout,
+                cursor="hand2"
+            )
+            self.logout_btn.place(x=909.0, y=14.0, width=85.0, height=30.0)
     
     def start_online_order(self):
         """Start online ordering process"""
@@ -437,8 +675,8 @@ if __name__ == "__main__":
     
     root = tk.Tk()
     root.title("BigBrew Customer Home - Test")
-    root.geometry("1000x700")
-    root.configure(bg="#FFF8E7")
+    root.geometry("1035x534")
+    root.configure(bg="#FFFFFF")
     
     app = MockApp()
     customer_home = CustomerHome(root, sample_customer, app)
