@@ -9,6 +9,7 @@ from tkinter import ttk, messagebox
 from pathlib import Path
 import sys
 import os
+import subprocess
 from datetime import datetime
 
 OUTPUT_PATH = Path(__file__).parent
@@ -624,8 +625,17 @@ class CustomerHome:
             self.logout_btn.place(x=909.0, y=14.0, width=85.0, height=30.0)
     
     def start_online_order(self):
-        """Start online ordering process"""
-        messagebox.showinfo("Online Ordering", "Online ordering feature coming soon!\n\nYou'll be able to browse our menu and place orders for pickup or delivery.")
+        """Start online ordering process by launching order.py in a new process"""
+        try:
+            order_script = os.path.join(OUTPUT_PATH, "order.py")
+            if not os.path.exists(order_script):
+                messagebox.showerror("Error", "order.py not found in the application directory.")
+                return
+
+            # Launch as a separate Python process to avoid multiple Tk roots
+            subprocess.Popen([sys.executable, order_script], cwd=str(OUTPUT_PATH))
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to open Order window.\n\n{e}")
     
     def view_rewards(self):
         """View loyalty rewards"""
