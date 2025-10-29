@@ -8,6 +8,9 @@ from pathlib import Path
 # from tkinter import *
 # Explicit imports to satisfy Flake8
 from tkinter import Tk, Canvas, Entry, Text, Button, PhotoImage
+import os
+import sys
+import subprocess
 
 
 OUTPUT_PATH = Path(__file__).parent
@@ -22,6 +25,18 @@ window = Tk()
 
 window.geometry("1035x534")
 window.configure(bg = "#FFFFFF")
+
+# Center the order window on the screen
+try:
+    window.update_idletasks()
+    _w, _h = 1035, 534
+    _sw = window.winfo_screenwidth()
+    _sh = window.winfo_screenheight()
+    _x = int((_sw - _w) / 2)
+    _y = int((_sh - _h) / 2)
+    window.geometry(f"{_w}x{_h}+{_x}+{_y}")
+except Exception:
+    pass
 
 
 canvas = Canvas(
@@ -42,6 +57,16 @@ image_1 = canvas.create_image(
     267.0,
     image=image_image_1
 )
+
+def open_coming_soon():
+    try:
+        script_path = os.path.join(os.path.dirname(__file__), "coming_soon.py")
+        subprocess.Popen([sys.executable, script_path])
+    finally:
+        try:
+            window.destroy()
+        except Exception:
+            pass
 
 canvas.create_rectangle(
     0.0,
@@ -151,7 +176,7 @@ button_2 = Button(
     image=button_image_2,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_2 clicked"),
+    command=open_coming_soon,
     relief="flat"
 )
 button_2.place(
@@ -183,7 +208,7 @@ button_4 = Button(
     image=button_image_4,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_4 clicked"),
+    command=open_coming_soon,
     relief="flat"
 )
 button_4.place(
@@ -199,7 +224,7 @@ button_5 = Button(
     image=button_image_5,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_5 clicked"),
+    command=open_coming_soon,
     relief="flat"
 )
 button_5.place(
@@ -215,7 +240,7 @@ button_6 = Button(
     image=button_image_6,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_6 clicked"),
+    command=open_coming_soon,
     relief="flat"
 )
 button_6.place(
@@ -231,7 +256,7 @@ button_7 = Button(
     image=button_image_7,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_7 clicked"),
+    command=open_coming_soon,
     relief="flat"
 )
 button_7.place(
@@ -247,7 +272,7 @@ button_8 = Button(
     image=button_image_8,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_8 clicked"),
+    command=open_coming_soon,
     relief="flat"
 )
 button_8.place(

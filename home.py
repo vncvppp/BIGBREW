@@ -60,6 +60,19 @@ class CustomerHome:
         
         self.setup_ui()
         
+    def center_parent(self, width: int = 1035, height: int = 534):
+        """Center the parent window on the screen for the given size."""
+        try:
+            self.parent.update_idletasks()
+            screen_w = self.parent.winfo_screenwidth()
+            screen_h = self.parent.winfo_screenheight()
+            x = int((screen_w - width) / 2)
+            y = int((screen_h - height) / 2)
+            self.parent.geometry(f"{width}x{height}+{x}+{y}")
+        except Exception:
+            # Fallback to default geometry if centering fails
+            self.parent.geometry(f"{width}x{height}")
+
     def load_image(self, path: str):
         """Load image and keep reference to prevent garbage collection"""
         try:
@@ -102,6 +115,8 @@ class CustomerHome:
         self.draw_account_info()
         self.draw_feature_cards()
         self.draw_buttons()
+        # Center window after layout
+        self.center_parent(1035, 534)
     
     def draw_background(self):
         """Draw background elements"""
@@ -634,6 +649,8 @@ class CustomerHome:
 
             # Launch as a separate Python process to avoid multiple Tk roots
             subprocess.Popen([sys.executable, order_script], cwd=str(OUTPUT_PATH))
+            # Close the home window when order window opens
+            self.parent.destroy()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to open Order window.\n\n{e}")
     
