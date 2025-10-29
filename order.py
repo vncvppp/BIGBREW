@@ -8,6 +8,7 @@ from pathlib import Path
 # from tkinter import *
 # Explicit imports to satisfy Flake8
 from tkinter import Tk, Canvas, Entry, Text, Button, PhotoImage
+from pop_up import show_options_popup
 import os
 import sys
 import subprocess
@@ -67,6 +68,132 @@ def open_coming_soon():
             window.destroy()
         except Exception:
             pass
+
+
+def open_options_popup():
+    try:
+        show_options_popup(window, on_add_item=add_item_to_cart)
+    except Exception as e:
+        print(f"Failed to open options popup: {e}")
+
+# -------------------- Cart/Order list state + rendering --------------------
+cart_items = []  # list of dicts: {name, size, price, qty}
+cart_item_canvas_ids = []  # to clear and rerender item cards
+
+subtotal_text_id = None
+total_text_id = None
+
+def add_item_to_cart(item):
+    # If same name+size exists, increment qty; else append
+    for existing in cart_items:
+        if existing["name"] == item["name"] and existing["size"] == item["size"] and existing["price"] == item["price"]:
+            existing["qty"] += item.get("qty", 1)
+            break
+    else:
+        cart_items.append({
+            "name": item["name"],
+            "size": item.get("size", "Regular"),
+            "price": float(item["price"]),
+            "qty": int(item.get("qty", 1))
+        })
+    render_cart()
+
+def change_item_qty(index, delta):
+    if 0 <= index < len(cart_items):
+        cart_items[index]["qty"] = max(0, cart_items[index]["qty"] + delta)
+        if cart_items[index]["qty"] == 0:
+            del cart_items[index]
+        render_cart()
+
+def render_cart():
+    # Clear existing item drawings
+    for _id in cart_item_canvas_ids:
+        try:
+            canvas.delete(_id)
+        except Exception:
+            pass
+    cart_item_canvas_ids.clear()
+
+    # Layout settings (right panel area ~ x 768-1005)
+    left_x = 780
+    right_x = 995
+    y = 120
+    card_height = 70
+    v_gap = 14
+
+    # Draw each item card
+    for idx, it in enumerate(cart_items):
+        # background card
+        bg = canvas.create_rectangle(
+            left_x, y, right_x, y + card_height, fill="#ECE3D1", outline="", width=0
+        )
+        cart_item_canvas_ids.append(bg)
+
+        # Title: Name (Size)
+        title = f"{it['name']}  ({it['size']})"
+        t1 = canvas.create_text(
+            left_x + 16, y + 12, anchor="nw", text=title, fill="#1E1E1E",
+            font=("Poppins SemiBold", 12 * -1)
+        )
+        cart_item_canvas_ids.append(t1)
+
+        # Price on right
+        price_str = f"₱{it['price']:.2f}"
+        tprice = canvas.create_text(
+            right_x - 16, y + 12, anchor="ne", text=price_str, fill="#1E1E1E",
+            font=("Poppins SemiBold", 12 * -1)
+        )
+        cart_item_canvas_ids.append(tprice)
+
+        # Qty line like: "1  x  ₱29.00" in grey
+        qty_line = f"{it['qty']}  x  ₱{it['price']:.2f}"
+        t2 = canvas.create_text(
+            left_x + 16, y + 36, anchor="nw", text=qty_line, fill="#9A9A9B",
+            font=("Poppins Regular", 11 * -1)
+        )
+        cart_item_canvas_ids.append(t2)
+
+        # Minus and plus simple circle buttons
+        # Minus
+        minus_circle = canvas.create_oval(
+            right_x - 64, y + 36, right_x - 40, y + 60, outline="#9A9A9B", width=2
+        )
+        minus_line = canvas.create_line(
+            right_x - 60, y + 48, right_x - 44, y + 48, fill="#9A9A9B", width=2
+        )
+        cart_item_canvas_ids.extend([minus_circle, minus_line])
+
+        # Plus
+        plus_circle = canvas.create_oval(
+            right_x - 32, y + 36, right_x - 8, y + 60, outline="#9A9A9B", width=2
+        )
+        plus_h = canvas.create_line(
+            right_x - 28, y + 48, right_x - 12, y + 48, fill="#9A9A9B", width=2
+        )
+        plus_v = canvas.create_line(
+            right_x - 20, y + 40, right_x - 20, y + 56, fill="#9A9A9B", width=2
+        )
+        cart_item_canvas_ids.extend([plus_circle, plus_h, plus_v])
+
+        # Bind clicks to adjust qty
+        def bind_click(tag_id, cb):
+            canvas.tag_bind(tag_id, "<Button-1>", lambda _e: cb())
+
+        bind_click(minus_circle, lambda i=idx: change_item_qty(i, -1))
+        bind_click(minus_line,   lambda i=idx: change_item_qty(i, -1))
+        bind_click(plus_circle,  lambda i=idx: change_item_qty(i, +1))
+        bind_click(plus_h,       lambda i=idx: change_item_qty(i, +1))
+        bind_click(plus_v,       lambda i=idx: change_item_qty(i, +1))
+
+        y += card_height + v_gap
+
+    # Update totals
+    subtotal = sum(it["price"] * it["qty"] for it in cart_items)
+    total = subtotal  # add-on is fixed 0.00 for now
+    if subtotal_text_id is not None:
+        canvas.itemconfigure(subtotal_text_id, text=f"₱{subtotal:.2f}")
+    if total_text_id is not None:
+        canvas.itemconfigure(total_text_id, text=f"₱{total:.2f}")
 
 canvas.create_rectangle(
     0.0,
@@ -330,6 +457,7 @@ button_10.place(
     height=39.73057174682617
 )
 
+# Add-On label remains same
 canvas.create_text(
     796.878173828125,
     372.86761474609375,
@@ -357,7 +485,7 @@ canvas.create_text(
     font=("Poppins Regular", 12 * -1)
 )
 
-canvas.create_text(
+subtotal_text_id = canvas.create_text(
     936.2900390625,
     350.3536376953125,
     anchor="nw",
@@ -366,7 +494,7 @@ canvas.create_text(
     font=("Poppins Regular", 12 * -1)
 )
 
-canvas.create_text(
+total_text_id = canvas.create_text(
     936.2900390625,
     414.5302734375,
     anchor="nw",
@@ -408,7 +536,7 @@ button_11 = Button(
     image=button_image_11,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_11 clicked"),
+    command=open_options_popup,
     relief="flat"
 )
 button_11.place(
@@ -424,7 +552,7 @@ button_12 = Button(
     image=button_image_12,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_12 clicked"),
+    command=open_options_popup,
     relief="flat"
 )
 button_12.place(
@@ -440,7 +568,7 @@ button_13 = Button(
     image=button_image_13,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_13 clicked"),
+    command=open_options_popup,
     relief="flat"
 )
 button_13.place(
@@ -456,7 +584,7 @@ button_14 = Button(
     image=button_image_14,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_14 clicked"),
+    command=open_options_popup,
     relief="flat"
 )
 button_14.place(
@@ -472,7 +600,7 @@ button_15 = Button(
     image=button_image_15,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_15 clicked"),
+    command=open_options_popup,
     relief="flat"
 )
 button_15.place(
@@ -488,7 +616,7 @@ button_16 = Button(
     image=button_image_16,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_16 clicked"),
+    command=open_options_popup,
     relief="flat"
 )
 button_16.place(
@@ -504,7 +632,7 @@ button_17 = Button(
     image=button_image_17,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_17 clicked"),
+    command=open_options_popup,
     relief="flat"
 )
 button_17.place(
@@ -520,7 +648,7 @@ button_18 = Button(
     image=button_image_18,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_18 clicked"),
+    command=open_options_popup,
     relief="flat"
 )
 button_18.place(
@@ -536,7 +664,7 @@ button_19 = Button(
     image=button_image_19,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_19 clicked"),
+    command=open_options_popup,
     relief="flat"
 )
 button_19.place(
@@ -552,7 +680,7 @@ button_20 = Button(
     image=button_image_20,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_20 clicked"),
+    command=open_options_popup,
     relief="flat"
 )
 button_20.place(
