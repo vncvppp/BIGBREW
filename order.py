@@ -13,6 +13,8 @@ from pop_up import show_options_popup
 import os
 import sys
 import subprocess
+import tempfile
+import json
 
 
 OUTPUT_PATH = Path(__file__).parent
@@ -218,60 +220,24 @@ def clear_cart():
     except Exception:
         pass
 
-def open_checkout_popup():
+def open_checkout_subprocess():
     if not cart_items:
         try:
             messagebox.showinfo("Checkout", "Your cart is empty.")
         except Exception:
             pass
         return
-
-    subtotal = sum(it["price"] * it["qty"] for it in cart_items)
-    total = subtotal
-
-    popup = Toplevel(window)
-    popup.title("Checkout")
-    popup.geometry("420x480")
+    # Write cart_items to a temp file
+    with tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".json") as tf:
+        json.dump(cart_items, tf)
+        temp_path = tf.name
+    # Call checkout.py and pass the temp file path
+    script_path = os.path.join(os.path.dirname(__file__), "checkout.py")
+    subprocess.Popen([sys.executable, script_path, temp_path])
     try:
-        popup.transient(window)
-        popup.grab_set()
+        window.destroy()
     except Exception:
         pass
-
-    summary_lines = ["Order Summary:\n"]
-    for it in cart_items:
-        line = f"- {it['name']} ({it['size']}) x{it['qty']}  ₱{it['price']:.2f}"
-        summary_lines.append(line)
-    summary_lines.append("")
-    summary_lines.append(f"Subtotal: ₱{subtotal:.2f}")
-    summary_lines.append(f"Total:    ₱{total:.2f}")
-    summary_lines.append("")
-    summary_lines.append("Payment Information:\n- Cash\n- GCash (scan at counter)\n- Card (Visa/Mastercard)")
-
-    label = Label(popup, text="\n".join(summary_lines), justify="left", anchor="nw")
-    label.place(x=16, y=16, width=388, height=392)
-
-    def confirm_checkout():
-        try:
-            messagebox.showinfo("Payment", "Payment recorded. Thank you!")
-        except Exception:
-            pass
-        clear_cart()
-        try:
-            popup.destroy()
-        except Exception:
-            pass
-
-    def cancel_checkout():
-        try:
-            popup.destroy()
-        except Exception:
-            pass
-
-    btn_confirm = Button(popup, text="Confirm", command=confirm_checkout)
-    btn_confirm.place(x=220, y=424, width=90, height=32)
-    btn_cancel = Button(popup, text="Close", command=cancel_checkout)
-    btn_cancel.place(x=316, y=424, width=90, height=32)
 
 canvas.create_rectangle(
     0.0,
@@ -535,7 +501,7 @@ button_10 = Button(
     image=button_image_10,
     borderwidth=0,
     highlightthickness=0,
-    command=open_checkout_popup,
+    command=open_checkout_subprocess,
     relief="flat"
 )
 button_10.place(
