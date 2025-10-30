@@ -70,6 +70,17 @@ def open_coming_soon():
             pass
 
 
+def open_home():
+    try:
+        script_path = os.path.join(os.path.dirname(__file__), "home.py")
+        subprocess.Popen([sys.executable, script_path])
+    finally:
+        try:
+            window.destroy()
+        except Exception:
+            pass
+
+
 def open_options_popup():
     try:
         show_options_popup(window, on_add_item=add_item_to_cart)
@@ -217,7 +228,7 @@ button_1 = Button(
     image=button_image_1,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_1 clicked"),
+    command=open_home,
     relief="flat"
 )
 button_1.place(

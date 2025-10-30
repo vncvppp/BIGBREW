@@ -7,7 +7,7 @@ from pathlib import Path
 
 # from tkinter import *
 # Explicit imports to satisfy Flake8
-from tkinter import Toplevel, Canvas, Entry, Text, Button, PhotoImage
+from tkinter import Toplevel, Canvas, Entry, Text, Button, PhotoImage, Checkbutton, BooleanVar
 
 
 OUTPUT_PATH = Path(__file__).parent
@@ -101,15 +101,28 @@ def show_options_popup(parent, on_add_item=None):
         height=35.0
     )
 
-    canvas.create_rectangle(
-        40.0,
-        149.0,
-        56.0,
-        165.0,
-        fill="#000000",
-        outline="")
+    # Interactive checkbox for Add Extra Shot
+    add_extra_var = BooleanVar(master=top, value=False)
+    checkbox = Checkbutton(
+        top,
+        variable=add_extra_var,
+        onvalue=True,
+        offvalue=False,
+        bg="#FFF8E7",
+        activebackground="#FFF8E7",
+        highlightthickness=0,
+        bd=0,
+        takefocus=0
+    )
+    checkbox.place(x=40.0, y=146.0)
 
-    canvas.create_text(
+    def toggle_add_extra():
+        try:
+            add_extra_var.set(not add_extra_var.get())
+        except Exception:
+            pass
+
+    text_id_1 = canvas.create_text(
         68.0,
         146.0,
         anchor="nw",
@@ -118,7 +131,7 @@ def show_options_popup(parent, on_add_item=None):
         font=("Inter", 16 * -1)
     )
 
-    canvas.create_text(
+    text_id_2 = canvas.create_text(
         68.0,
         168.0,
         anchor="nw",
@@ -126,6 +139,10 @@ def show_options_popup(parent, on_add_item=None):
         fill="#757575",
         font=("Inter", 16 * -1)
     )
+
+    # Make the label texts clickable to toggle the checkbox
+    canvas.tag_bind(text_id_1, "<Button-1>", lambda _e: toggle_add_extra())
+    canvas.tag_bind(text_id_2, "<Button-1>", lambda _e: toggle_add_extra())
 
     button_image_3 = PhotoImage(
         file=relative_to_assets("button_3.png"))
