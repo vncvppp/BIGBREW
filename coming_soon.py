@@ -4,17 +4,17 @@
 
 
 from pathlib import Path
-
-# from tkinter import *
-# Explicit imports to satisfy Flake8
-from tkinter import Tk, Canvas, Entry, Text, Button, PhotoImage
 import os
 import sys
 import subprocess
 
+# from tkinter import *
+# Explicit imports to satisfy Flake8
+from tkinter import Tk, Canvas, Entry, Text, Button, PhotoImage
+
 
 OUTPUT_PATH = Path(__file__).parent
-ASSETS_PATH = OUTPUT_PATH / Path(r"C:\Users\Admin\Downloads\Output_design\order history\build\assets\frame3")
+ASSETS_PATH = OUTPUT_PATH / Path(r"C:\Users\Admin\Downloads\Output_design\coffee\build\assets\frame0")
 
 
 def relative_to_assets(path: str) -> Path:
@@ -22,27 +22,24 @@ def relative_to_assets(path: str) -> Path:
 
 
 window = Tk()
-
-window.geometry("1035x534")
-window.configure(bg = "#FFFFFF")
-
-# Center the coming soon window on the screen
+# Center the window on the screen
 try:
     window.update_idletasks()
-    _w, _h = 1035, 534
+    _w, _h = 1035, 530
     _sw = window.winfo_screenwidth()
     _sh = window.winfo_screenheight()
     _x = int((_sw - _w) / 2)
     _y = int((_sh - _h) / 2)
     window.geometry(f"{_w}x{_h}+{_x}+{_y}")
 except Exception:
-    pass
+    window.geometry("1035x530")
+window.configure(bg = "#FFFFFF")
 
 
 canvas = Canvas(
     window,
     bg = "#FFFFFF",
-    height = 534,
+    height = 530,
     width = 1035,
     bd = 0,
     highlightthickness = 0,
@@ -58,16 +55,6 @@ image_1 = canvas.create_image(
     image=image_image_1
 )
 
-def go_back_to_order():
-    try:
-        script_path = os.path.join(os.path.dirname(__file__), "order.py")
-        subprocess.Popen([sys.executable, script_path])
-    finally:
-        try:
-            window.destroy()
-        except Exception:
-            pass
-
 canvas.create_rectangle(
     0.0,
     0.0,
@@ -79,8 +66,8 @@ canvas.create_rectangle(
 image_image_2 = PhotoImage(
     file=relative_to_assets("image_2.png"))
 image_2 = canvas.create_image(
-    87.0,
-    24.0,
+    89.0,
+    29.0,
     image=image_image_2
 )
 
@@ -100,13 +87,38 @@ image_3 = canvas.create_image(
     image=image_image_3
 )
 
+# -------- Navigation helpers --------
+def _open_script(script_name: str):
+    try:
+        script_path = os.path.join(os.path.dirname(__file__), script_name)
+        subprocess.Popen([sys.executable, script_path])
+    finally:
+        try:
+            window.destroy()
+        except Exception:
+            pass
+
+def open_order():
+    _open_script("order.py")
+
+def open_menu_coffee():
+    _open_script("menu_coffee.py")
+
+def go_back_previous():
+    # Try env var BIGBREW_PREV for previous script; else fallback to home.py
+    prev = os.environ.get("BIGBREW_PREV", "home.py")
+    if not prev.endswith(".py"):
+        prev = f"{prev}.py"
+    _open_script(prev)
+
 button_image_1 = PhotoImage(
     file=relative_to_assets("button_1.png"))
 button_1 = Button(
     image=button_image_1,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_1 clicked"),
+    command=lambda: None,
+    state="disabled",
     relief="flat"
 )
 button_1.place(
@@ -122,7 +134,8 @@ button_2 = Button(
     image=button_image_2,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_2 clicked"),
+    command=lambda: None,
+    state="disabled",
     relief="flat"
 )
 button_2.place(
@@ -163,16 +176,16 @@ canvas.create_text(
     936.2900390625,
     350.3536376953125,
     anchor="nw",
-    text="₱145.00",
+    text="₱0.00",
     fill="#9A9A9B",
     font=("Poppins Regular", 12 * -1)
 )
 
 canvas.create_text(
     936.2900390625,
-    414.5302734375,
+    414.5302429199219,
     anchor="nw",
-    text="₱145.00",
+    text="₱0.00",
     fill="#1E1E1E",
     font=("Poppins SemiBold", 12 * -1)
 )
@@ -204,30 +217,21 @@ canvas.create_text(
     font=("Poppins SemiBold", 12 * -1)
 )
 
-canvas.create_rectangle(
-    784.0,
-    94.0,
-    986.0,
-    141.64856719970703,
-    fill="#EFE8D8",
-    outline="")
-
-canvas.create_text(
-    794.0,
-    104.59027099609375,
-    anchor="nw",
-    text="Chocolate",
-    fill="#000000",
-    font=("Poppins Regular", 12 * -1)
+image_image_4 = PhotoImage(
+    file=relative_to_assets("image_4.png"))
+image_4 = canvas.create_image(
+    135.0,
+    288.0,
+    image=image_image_4
 )
 
 canvas.create_text(
-    936.0,
-    105.0,
+    58.0,
+    81.0,
     anchor="nw",
-    text="₱29.00",
-    fill="#1E1E1E",
-    font=("Poppins Regular", 12 * -1)
+    text="Menu",
+    fill="#B96708",
+    font=("Poppins ExtraBold", 32 * -1)
 )
 
 button_image_3 = PhotoImage(
@@ -240,10 +244,10 @@ button_3 = Button(
     relief="flat"
 )
 button_3.place(
-    x=937.0,
-    y=120.0,
-    width=15.0,
-    height=15.0
+    x=49.0,
+    y=435.0,
+    width=171.0,
+    height=35.0
 )
 
 button_image_4 = PhotoImage(
@@ -256,63 +260,10 @@ button_4 = Button(
     relief="flat"
 )
 button_4.place(
-    x=959.0,
-    y=120.0,
-    width=15.0,
-    height=15.0
-)
-
-canvas.create_text(
-    797.0,
-    121.0,
-    anchor="nw",
-    text="1 ",
-    fill="#9A9A9B",
-    font=("Poppins Regular", 10 * -1)
-)
-
-canvas.create_text(
-    810.0,
-    121.0,
-    anchor="nw",
-    text="x  ₱29.00",
-    fill="#9A9A9B",
-    font=("Poppins Regular", 10 * -1)
-)
-
-canvas.create_text(
-    861.0,
-    103.0,
-    anchor="nw",
-    text="(Regular)",
-    fill="#999999",
-    font=("Inter", 12 * -1)
-)
-
-canvas.create_rectangle(
-    784.0,
-    152.0,
-    986.0,
-    199.64856719970703,
-    fill="#EFE8D8",
-    outline="")
-
-canvas.create_text(
-    794.0,
-    163.0,
-    anchor="nw",
-    text="Red Velvet",
-    fill="#000000",
-    font=("Poppins Regular", 12 * -1)
-)
-
-canvas.create_text(
-    935.0,
-    161.0,
-    anchor="nw",
-    text="₱78.00",
-    fill="#1E1E1E",
-    font=("Poppins Regular", 12 * -1)
+    x=49.0,
+    y=387.0,
+    width=171.0,
+    height=35.0
 )
 
 button_image_5 = PhotoImage(
@@ -321,14 +272,14 @@ button_5 = Button(
     image=button_image_5,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_5 clicked"),
+    command=open_menu_coffee,
     relief="flat"
 )
 button_5.place(
-    x=937.0,
-    y=178.0,
-    width=15.0,
-    height=15.0
+    x=49.0,
+    y=338.0,
+    width=171.0,
+    height=36.0
 )
 
 button_image_6 = PhotoImage(
@@ -341,63 +292,10 @@ button_6 = Button(
     relief="flat"
 )
 button_6.place(
-    x=959.0,
-    y=178.0,
-    width=15.0,
-    height=15.0
-)
-
-canvas.create_text(
-    797.0,
-    179.0,
-    anchor="nw",
-    text="2",
-    fill="#9A9A9B",
-    font=("Poppins Regular", 10 * -1)
-)
-
-canvas.create_text(
-    810.0,
-    179.0,
-    anchor="nw",
-    text="x  ₱39.00",
-    fill="#9A9A9B",
-    font=("Poppins Regular", 10 * -1)
-)
-
-canvas.create_text(
-    861.0,
-    161.0,
-    anchor="nw",
-    text="(Large)",
-    fill="#999999",
-    font=("Inter", 12 * -1)
-)
-
-canvas.create_rectangle(
-    783.0,
-    212.0,
-    985.0,
-    259.64856719970703,
-    fill="#EFE8D8",
-    outline="")
-
-canvas.create_text(
-    793.0,
-    222.5902099609375,
-    anchor="nw",
-    text="Taro",
-    fill="#000000",
-    font=("Poppins Regular", 12 * -1)
-)
-
-canvas.create_text(
-    934.0,
-    221.0,
-    anchor="nw",
-    text="₱38.00",
-    fill="#1E1E1E",
-    font=("Poppins Regular", 12 * -1)
+    x=49.0,
+    y=290.0,
+    width=171.0,
+    height=35.0
 )
 
 button_image_7 = PhotoImage(
@@ -410,10 +308,10 @@ button_7 = Button(
     relief="flat"
 )
 button_7.place(
-    x=936.0,
-    y=238.0,
-    width=15.0,
-    height=15.0
+    x=49.0,
+    y=241.0,
+    width=171.0,
+    height=36.0
 )
 
 button_image_8 = PhotoImage(
@@ -426,74 +324,10 @@ button_8 = Button(
     relief="flat"
 )
 button_8.place(
-    x=958.0,
-    y=238.0,
-    width=15.0,
-    height=15.0
-)
-
-canvas.create_text(
-    796.0,
-    239.0,
-    anchor="nw",
-    text="2",
-    fill="#9A9A9B",
-    font=("Poppins Regular", 10 * -1)
-)
-
-canvas.create_text(
-    810.0,
-    239.0,
-    anchor="nw",
-    text="x  ₱29.00",
-    fill="#9A9A9B",
-    font=("Poppins Regular", 10 * -1)
-)
-
-canvas.create_text(
-    826.0,
-    221.0,
-    anchor="nw",
-    text="(Regular)",
-    fill="#9A9A9B",
-    font=("Inter", 12 * -1)
-)
-
-entry_image_1 = PhotoImage(
-    file=relative_to_assets("entry_1.png"))
-entry_bg_1 = canvas.create_image(
-    274.0,
-    24.0,
-    image=entry_image_1
-)
-entry_1 = Entry(
-    bd=0,
-    bg="#FFF8E7",
-    fg="#000716",
-    highlightthickness=0
-)
-entry_1.place(
-    x=179.0,
-    y=12.0,
-    width=190.0,
-    height=22.0
-)
-
-canvas.create_rectangle(
-    34.0,
-    75.0,
-    236.0,
-    501.0,
-    fill="#FFF8E7",
-    outline="")
-
-canvas.create_text(
-    58.0,
-    81.0,
-    anchor="nw",
-    text="Menu",
-    fill="#B96708",
-    font=("Poppins ExtraBold", 32 * -1)
+    x=49.0,
+    y=241.0,
+    width=171.0,
+    height=36.0
 )
 
 button_image_9 = PhotoImage(
@@ -502,12 +336,12 @@ button_9 = Button(
     image=button_image_9,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_9 clicked"),
+    command=open_order,
     relief="flat"
 )
 button_9.place(
     x=49.0,
-    y=435.0,
+    y=193.0,
     width=171.0,
     height=35.0
 )
@@ -523,9 +357,9 @@ button_10 = Button(
 )
 button_10.place(
     x=49.0,
-    y=387.0,
+    y=144.0,
     width=171.0,
-    height=35.0
+    height=36.0
 )
 
 button_image_11 = PhotoImage(
@@ -534,123 +368,27 @@ button_11 = Button(
     image=button_image_11,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_11 clicked"),
+    command=go_back_previous,
     relief="flat"
 )
 button_11.place(
-    x=49.0,
-    y=338.0,
-    width=171.0,
-    height=36.0
-)
-
-button_image_12 = PhotoImage(
-    file=relative_to_assets("button_12.png"))
-button_12 = Button(
-    image=button_image_12,
-    borderwidth=0,
-    highlightthickness=0,
-    command=lambda: print("button_12 clicked"),
-    relief="flat"
-)
-button_12.place(
-    x=49.0,
-    y=290.0,
-    width=171.0,
-    height=35.0
-)
-
-button_image_13 = PhotoImage(
-    file=relative_to_assets("button_13.png"))
-button_13 = Button(
-    image=button_image_13,
-    borderwidth=0,
-    highlightthickness=0,
-    command=lambda: print("button_13 clicked"),
-    relief="flat"
-)
-button_13.place(
-    x=49.0,
-    y=241.0,
-    width=171.0,
-    height=36.0
-)
-
-button_image_14 = PhotoImage(
-    file=relative_to_assets("button_14.png"))
-button_14 = Button(
-    image=button_image_14,
-    borderwidth=0,
-    highlightthickness=0,
-    command=lambda: print("button_14 clicked"),
-    relief="flat"
-)
-button_14.place(
-    x=49.0,
-    y=241.0,
-    width=171.0,
-    height=36.0
-)
-
-button_image_15 = PhotoImage(
-    file=relative_to_assets("button_15.png"))
-button_15 = Button(
-    image=button_image_15,
-    borderwidth=0,
-    highlightthickness=0,
-    command=go_back_to_order,
-    relief="flat"
-)
-button_15.place(
-    x=49.0,
-    y=193.0,
-    width=171.0,
-    height=35.0
-)
-
-button_image_16 = PhotoImage(
-    file=relative_to_assets("button_16.png"))
-button_16 = Button(
-    image=button_image_16,
-    borderwidth=0,
-    highlightthickness=0,
-    command=lambda: print("button_16 clicked"),
-    relief="flat"
-)
-button_16.place(
-    x=49.0,
-    y=144.0,
-    width=171.0,
-    height=36.0
-)
-
-button_image_17 = PhotoImage(
-    file=relative_to_assets("button_17.png"))
-button_17 = Button(
-    image=button_image_17,
-    borderwidth=0,
-    highlightthickness=0,
-    command=go_back_to_order,
-    relief="flat"
-)
-button_17.place(
     x=944.0,
     y=0.0,
     width=46.0,
     height=46.0
 )
 
-image_image_4 = PhotoImage(
-    file=relative_to_assets("image_4.png"))
-image_4 = canvas.create_image(
+image_image_5 = PhotoImage(
+    file=relative_to_assets("image_5.png"))
+image_5 = canvas.create_image(
     495.0,
     288.0,
-    image=image_image_4
+    image=image_image_5
 )
 
 canvas.create_text(
     318.0,
-    402.0,
+    446.0,
     anchor="nw",
     text="Coming Soon!",
     fill="#A89C88",
