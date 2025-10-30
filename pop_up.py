@@ -18,7 +18,7 @@ def relative_to_assets(path: str) -> Path:
     return ASSETS_PATH / Path(path)
 
 
-def show_options_popup(parent, on_add_item=None):
+def show_options_popup(parent, on_add_item=None, product_name=None):
     top = Toplevel(parent)
     top.title("Options")
     top.geometry("399x262")
@@ -60,6 +60,9 @@ def show_options_popup(parent, on_add_item=None):
         font=("Poppins SemiBold", 16 * -1)
     )
 
+    # Track selected size; default Regular
+    selected_size = {"value": "Regular"}
+
     button_image_1 = PhotoImage(
         file=relative_to_assets("button_1.png"))
     button_1 = Button(
@@ -67,12 +70,7 @@ def show_options_popup(parent, on_add_item=None):
         image=button_image_1,
         borderwidth=0,
         highlightthickness=0,
-        command=lambda: (on_add_item and on_add_item({
-            "name": "Chocolate",
-            "size": "Regular",
-            "price": 29.00,
-            "qty": 1
-        }), top.destroy()),
+        command=lambda: selected_size.update({"value": "Regular"}),
         relief="flat"
     )
     button_1.image = button_image_1  # prevent GC
@@ -90,7 +88,7 @@ def show_options_popup(parent, on_add_item=None):
         image=button_image_2,
         borderwidth=0,
         highlightthickness=0,
-        command=lambda: print("button_2 clicked"),
+        command=lambda: selected_size.update({"value": "Large"}),
         relief="flat"
     )
     button_2.image = button_image_2
@@ -146,12 +144,29 @@ def show_options_popup(parent, on_add_item=None):
 
     button_image_3 = PhotoImage(
         file=relative_to_assets("button_3.png"))
+    def on_add():
+        try:
+            size = selected_size.get("value") or "Regular"
+            price = 39.00 if size == "Large" else 29.00
+            if add_extra_var.get():
+                price += 5.00
+            item_name = product_name or "Chocolate"
+            if on_add_item:
+                on_add_item({
+                    "name": item_name,
+                    "size": size,
+                    "price": price,
+                    "qty": 1
+                })
+        finally:
+            top.destroy()
+
     button_3 = Button(
         top,
         image=button_image_3,
         borderwidth=0,
         highlightthickness=0,
-        command=lambda: print("button_3 clicked"),
+        command=on_add,
         relief="flat"
     )
     button_3.image = button_image_3
@@ -169,7 +184,7 @@ def show_options_popup(parent, on_add_item=None):
         image=button_image_4,
         borderwidth=0,
         highlightthickness=0,
-        command=top.destroy,
+        command=on_add,
         relief="flat"
     )
     button_4.image = button_image_4

@@ -81,9 +81,9 @@ def open_home():
             pass
 
 
-def open_options_popup():
+def open_options_popup(product_name=None):
     try:
-        show_options_popup(window, on_add_item=add_item_to_cart)
+        show_options_popup(window, on_add_item=add_item_to_cart, product_name=product_name)
     except Exception as e:
         print(f"Failed to open options popup: {e}")
 
@@ -611,7 +611,7 @@ button_15 = Button(
     image=button_image_15,
     borderwidth=0,
     highlightthickness=0,
-    command=open_options_popup,
+    command=lambda: open_options_popup("Red Velvet"),
     relief="flat"
 )
 button_15.place(
