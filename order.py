@@ -439,13 +439,23 @@ button_5.place(
     height=35.0
 )
 
+def open_menu_coffee():
+    try:
+        script_path = os.path.join(os.path.dirname(__file__), "menu_coffee.py")
+        subprocess.Popen([sys.executable, script_path])
+    finally:
+        try:
+            window.destroy()
+        except Exception:
+            pass
+
 button_image_6 = PhotoImage(
     file=relative_to_assets("button_6.png"))
 button_6 = Button(
     image=button_image_6,
     borderwidth=0,
     highlightthickness=0,
-    command=open_coming_soon,
+    command=open_menu_coffee,
     relief="flat"
 )
 button_6.place(
