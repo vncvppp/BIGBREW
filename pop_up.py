@@ -99,8 +99,9 @@ def show_options_popup(parent, on_add_item=None, product_name=None):
         height=35.0
     )
 
-    # Interactive checkbox for Add Extra Shot
+    # Interactive checkbox for Add Extra Shot (Coffee-only)
     add_extra_var = BooleanVar(master=top, value=False)
+    is_coffee = bool(product_name and ("coffee" in str(product_name).lower()))
     checkbox = Checkbutton(
         top,
         variable=add_extra_var,
@@ -112,11 +113,35 @@ def show_options_popup(parent, on_add_item=None, product_name=None):
         bd=0,
         takefocus=0
     )
-    checkbox.place(x=40.0, y=146.0)
+    _extra_shot_added = {"done": False}
 
-    def toggle_add_extra():
+    def on_extra_toggle():
+        # Only add once when checked, and only for Coffee
+        if not is_coffee:
+            return
         try:
-            add_extra_var.set(not add_extra_var.get())
+            if add_extra_var.get() and not _extra_shot_added["done"]:
+                size = selected_size.get("value") or "Regular"
+                item_name_local = product_name or "Coffee"
+                if on_add_item:
+                    on_add_item({
+                        "name": f"{item_name_local} - Extra Shot",
+                        "size": size,
+                        "price": 5.00,
+                        "qty": 1,
+                        "is_add_on": True
+                    })
+                _extra_shot_added["done"] = True
+        except Exception:
+            pass
+
+    if is_coffee:
+        checkbox.configure(command=on_extra_toggle)
+        checkbox.place(x=40.0, y=146.0)
+    else:
+        # Hide checkbox for non-coffee items
+        try:
+            checkbox.place_forget()
         except Exception:
             pass
 
@@ -138,18 +163,21 @@ def show_options_popup(parent, on_add_item=None, product_name=None):
         font=("Inter", 16 * -1)
     )
 
-    # Make the label texts clickable to toggle the checkbox
-    canvas.tag_bind(text_id_1, "<Button-1>", lambda _e: toggle_add_extra())
-    canvas.tag_bind(text_id_2, "<Button-1>", lambda _e: toggle_add_extra())
+    # For Coffee: make labels toggle the checkbox and potentially add extra
+    if is_coffee:
+        canvas.tag_bind(text_id_1, "<Button-1>", lambda _e: (add_extra_var.set(not add_extra_var.get()), on_extra_toggle()))
+        canvas.tag_bind(text_id_2, "<Button-1>", lambda _e: (add_extra_var.set(not add_extra_var.get()), on_extra_toggle()))
+    else:
+        # Disable label clicks for non-coffee; visually could remain as text
+        pass
 
     button_image_3 = PhotoImage(
-        file=relative_to_assets("button_3.png"))
+    file=relative_to_assets("button_3.png"))
     def on_add():
         try:
             size = selected_size.get("value") or "Regular"
             price = 39.00 if size == "Large" else 29.00
-            if add_extra_var.get():
-                price += 5.00
+            # Price stays base; extra shot is a separate add-on line for Coffee
             item_name = product_name or "Chocolate"
             if on_add_item:
                 on_add_item({
@@ -161,12 +189,18 @@ def show_options_popup(parent, on_add_item=None, product_name=None):
         finally:
             top.destroy()
 
+    def on_cancel():
+        try:
+            top.destroy()
+        except Exception:
+            pass
+
     button_3 = Button(
         top,
         image=button_image_3,
         borderwidth=0,
         highlightthickness=0,
-        command=on_add,
+        command=on_cancel,
         relief="flat"
     )
     button_3.image = button_image_3

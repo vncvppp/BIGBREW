@@ -7,7 +7,8 @@ from pathlib import Path
 
 # from tkinter import *
 # Explicit imports to satisfy Flake8
-from tkinter import Tk, Canvas, Entry, Text, Button, PhotoImage
+from tkinter import Tk, Canvas, Entry, Text, Button, PhotoImage, Toplevel, Label, Listbox
+from tkinter import messagebox
 from pop_up import show_options_popup
 import os
 import sys
@@ -92,6 +93,7 @@ cart_items = []  # list of dicts: {name, size, price, qty}
 cart_item_canvas_ids = []  # to clear and rerender item cards
 
 subtotal_text_id = None
+add_on_text_id = None
 total_text_id = None
 
 def add_item_to_cart(item):
@@ -198,13 +200,78 @@ def render_cart():
 
         y += card_height + v_gap
 
-    # Update totals
-    subtotal = sum(it["price"] * it["qty"] for it in cart_items)
-    total = subtotal  # add-on is fixed 0.00 for now
+    # Update totals: split add-ons from base items
+    add_on = sum(it["price"] * it["qty"] for it in cart_items if it.get("is_add_on"))
+    subtotal = sum(it["price"] * it["qty"] for it in cart_items if not it.get("is_add_on"))
+    total = subtotal + add_on
     if subtotal_text_id is not None:
         canvas.itemconfigure(subtotal_text_id, text=f"₱{subtotal:.2f}")
+    if add_on_text_id is not None:
+        canvas.itemconfigure(add_on_text_id, text=f"₱{add_on:.2f}")
     if total_text_id is not None:
         canvas.itemconfigure(total_text_id, text=f"₱{total:.2f}")
+
+def clear_cart():
+    try:
+        cart_items.clear()
+        render_cart()
+    except Exception:
+        pass
+
+def open_checkout_popup():
+    if not cart_items:
+        try:
+            messagebox.showinfo("Checkout", "Your cart is empty.")
+        except Exception:
+            pass
+        return
+
+    subtotal = sum(it["price"] * it["qty"] for it in cart_items)
+    total = subtotal
+
+    popup = Toplevel(window)
+    popup.title("Checkout")
+    popup.geometry("420x480")
+    try:
+        popup.transient(window)
+        popup.grab_set()
+    except Exception:
+        pass
+
+    summary_lines = ["Order Summary:\n"]
+    for it in cart_items:
+        line = f"- {it['name']} ({it['size']}) x{it['qty']}  ₱{it['price']:.2f}"
+        summary_lines.append(line)
+    summary_lines.append("")
+    summary_lines.append(f"Subtotal: ₱{subtotal:.2f}")
+    summary_lines.append(f"Total:    ₱{total:.2f}")
+    summary_lines.append("")
+    summary_lines.append("Payment Information:\n- Cash\n- GCash (scan at counter)\n- Card (Visa/Mastercard)")
+
+    label = Label(popup, text="\n".join(summary_lines), justify="left", anchor="nw")
+    label.place(x=16, y=16, width=388, height=392)
+
+    def confirm_checkout():
+        try:
+            messagebox.showinfo("Payment", "Payment recorded. Thank you!")
+        except Exception:
+            pass
+        clear_cart()
+        try:
+            popup.destroy()
+        except Exception:
+            pass
+
+    def cancel_checkout():
+        try:
+            popup.destroy()
+        except Exception:
+            pass
+
+    btn_confirm = Button(popup, text="Confirm", command=confirm_checkout)
+    btn_confirm.place(x=220, y=424, width=90, height=32)
+    btn_cancel = Button(popup, text="Close", command=cancel_checkout)
+    btn_cancel.place(x=316, y=424, width=90, height=32)
 
 canvas.create_rectangle(
     0.0,
@@ -442,7 +509,7 @@ button_9 = Button(
     image=button_image_9,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_9 clicked"),
+    command=clear_cart,
     relief="flat"
 )
 button_9.place(
@@ -458,7 +525,7 @@ button_10 = Button(
     image=button_image_10,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_10 clicked"),
+    command=open_checkout_popup,
     relief="flat"
 )
 button_10.place(
@@ -478,7 +545,7 @@ canvas.create_text(
     font=("Poppins Regular", 12 * -1)
 )
 
-canvas.create_text(
+add_on_text_id = canvas.create_text(
     936.0,
     371.0,
     anchor="nw",
@@ -700,6 +767,87 @@ button_20.place(
     width=78.0,
     height=132.0
 )
+
+# -------------------- Search suggestions (buttons 11-20) --------------------
+products_11_20 = [
+    {"id": 11, "name": "Wintermelon"},
+    {"id": 12, "name": "Hokkaido"},
+    {"id": 13, "name": "Okinawa"},
+    {"id": 14, "name": "Thai Milk Tea"},
+    {"id": 15, "name": "Red Velvet"},
+    {"id": 16, "name": "Taro"},
+    {"id": 17, "name": "Matcha"},
+    {"id": 18, "name": "Caramel"},
+    {"id": 19, "name": "Chocolate"},
+    {"id": 20, "name": "Strawberry"},
+]
+
+button_by_id = {
+    11: button_11,
+    12: button_12,
+    13: button_13,
+    14: button_14,
+    15: button_15,
+    16: button_16,
+    17: button_17,
+    18: button_18,
+    19: button_19,
+    20: button_20,
+}
+
+search_listbox = Listbox(window)
+search_listbox.place(x=179.0, y=34.0, width=190.0, height=0)
+search_listbox.place_forget()
+
+_current_suggestions = []
+
+def _hide_suggestions():
+    try:
+        search_listbox.place_forget()
+    except Exception:
+        pass
+
+def _show_suggestions_if_any():
+    if _current_suggestions:
+        # Adjust height based on items (max 6 visible)
+        visible = min(len(_current_suggestions), 6)
+        try:
+            search_listbox.place(x=179.0, y=34.0, width=190.0, height=visible * 18)
+        except Exception:
+            pass
+    else:
+        _hide_suggestions()
+
+def _on_search_change(_evt=None):
+    query = entry_1.get().strip().lower()
+    _current_suggestions.clear()
+    search_listbox.delete(0, "end")
+    if not query:
+        _hide_suggestions()
+        return
+    for p in products_11_20:
+        if query in p["name"].lower():
+            _current_suggestions.append(p)
+            search_listbox.insert("end", p["name"])
+    _show_suggestions_if_any()
+
+def _on_suggestion_select(_evt=None):
+    if not _current_suggestions:
+        return
+    try:
+        sel = search_listbox.curselection()
+        if not sel:
+            return
+        idx = sel[0]
+        prod = _current_suggestions[idx]
+        btn = button_by_id.get(prod["id"]) 
+        if btn is not None:
+            btn.invoke()
+    finally:
+        _hide_suggestions()
+
+entry_1.bind("<KeyRelease>", _on_search_change)
+search_listbox.bind("<<ListboxSelect>>", _on_suggestion_select)
 
 canvas.create_rectangle(
     734.0,
