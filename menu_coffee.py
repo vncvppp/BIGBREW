@@ -8,6 +8,13 @@ from pathlib import Path
 # from tkinter import *
 # Explicit imports to satisfy Flake8
 from tkinter import Tk, Canvas, Entry, Text, Button, PhotoImage
+from pop_up import show_options_popup  # Add this import
+from tkinter import messagebox  # Add this import after existing imports
+import tempfile
+import os
+import sys
+import subprocess
+import json
 
 
 OUTPUT_PATH = Path(__file__).parent
@@ -34,9 +41,7 @@ except Exception:
 window.configure(bg = "#FFFFFF")
 
 # --- Add window switching functions like order.py ---
-import os
-import sys
-import subprocess
+
 
 def open_home():
     try:
@@ -298,13 +303,113 @@ image_5 = canvas.create_image(
     image=image_image_5
 )
 
+# -------------- Cart state, add, and render, matching order.py -------------------
+cart_items = []  # Each: {name, size, price, qty}
+cart_item_canvas_ids = []
+
+def add_item_to_cart(item):
+    # If same name+size+price exists, increment qty; else append
+    for it in cart_items:
+        if (
+            it['name'] == item['name'] and 
+            it.get('size','Regular') == item.get('size','Regular') and 
+            float(it.get('price',0)) == float(item.get('price',0))
+        ):
+            it['qty'] += item.get('qty', 1)
+            break
+    else:
+        cart_items.append({
+            'name': item['name'],
+            'size': item.get('size','Regular'),
+            'price': float(item['price']),
+            'qty': int(item.get('qty',1)),
+            'is_add_on': item.get('is_add_on', False)
+        })
+    render_cart()
+
+def change_item_qty(idx, delta):
+    if 0 <= idx < len(cart_items):
+        cart_items[idx]['qty'] = max(0, cart_items[idx]['qty'] + delta)
+        if cart_items[idx]['qty'] == 0:
+            del cart_items[idx]
+        render_cart()
+
+def render_cart():
+    for cid in cart_item_canvas_ids:
+        try:
+            canvas.delete(cid)
+        except: pass
+    cart_item_canvas_ids.clear()
+
+    left_x, right_x = 780, 995
+    y, card_height, v_gap = 120, 70, 14
+    for idx, it in enumerate(cart_items):
+        # Card bg
+        bg = canvas.create_rectangle(left_x, y, right_x, y+card_height, fill="#ECE3D1", outline="", width=0)
+        cart_item_canvas_ids.append(bg)
+        # Name (Size)
+        title = f"{it['name']}  ({it.get('size','Regular')})"
+        t1 = canvas.create_text(left_x+16, y+12, anchor="nw", text=title, fill="#1E1E1E", font=("Poppins SemiBold", 12*-1))
+        cart_item_canvas_ids.append(t1)
+        # Price right
+        price_str = f"₱{it['price']:.2f}"
+        tprice = canvas.create_text(right_x-16, y+12, anchor="ne", text=price_str, fill="#1E1E1E", font=("Poppins SemiBold", 12*-1))
+        cart_item_canvas_ids.append(tprice)
+        # Qty line
+        qty_line = f"{it['qty']}  x  ₱{it['price']:.2f}"
+        t2 = canvas.create_text(left_x+16, y+36, anchor="nw", text=qty_line, fill="#9A9A9B", font=("Poppins Regular", 11*-1))
+        cart_item_canvas_ids.append(t2)
+        # Minus
+        minus_circ = canvas.create_oval(right_x-64, y+36, right_x-40, y+60, outline="#9A9A9B", width=2)
+        minus_line = canvas.create_line(right_x-60, y+48, right_x-44, y+48, fill="#9A9A9B", width=2)
+        cart_item_canvas_ids.extend([minus_circ, minus_line])
+        # Plus
+        plus_circ = canvas.create_oval(right_x-32, y+36, right_x-8, y+60, outline="#9A9A9B", width=2)
+        plus_h = canvas.create_line(right_x-28, y+48, right_x-12, y+48, fill="#9A9A9B", width=2)
+        plus_v = canvas.create_line(right_x-20, y+40, right_x-20, y+56, fill="#9A9A9B", width=2)
+        cart_item_canvas_ids.extend([plus_circ, plus_h, plus_v])
+        # Bind add/subtract
+        def bind_click(tag_id, cb):
+            canvas.tag_bind(tag_id, "<Button-1>", lambda _e: cb())
+        bind_click(minus_circ, lambda i=idx: change_item_qty(i, -1))
+        bind_click(minus_line, lambda i=idx: change_item_qty(i, -1))
+        bind_click(plus_circ, lambda i=idx: change_item_qty(i, +1))
+        bind_click(plus_h, lambda i=idx: change_item_qty(i, +1))
+        bind_click(plus_v, lambda i=idx: change_item_qty(i, +1))
+        y += card_height + v_gap
+
+def clear_cart():
+    try:
+        cart_items.clear()
+        render_cart()
+    except Exception:
+        pass
+
+def checkout_cart():
+    if not cart_items:
+        try:
+            messagebox.showinfo("Checkout", "Your cart is empty.")
+        except Exception:
+            pass
+        return
+    # Write cart_items to a temp file
+    with tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".json") as tf:
+        json.dump(cart_items, tf)
+        temp_path = tf.name
+    script_path = os.path.join(os.path.dirname(__file__), "checkout.py")
+    subprocess.Popen([sys.executable, script_path, temp_path])
+    try:
+        window.destroy()
+    except Exception:
+        pass
+
 button_image_9 = PhotoImage(
     file=relative_to_assets("button_9.png"))
 button_9 = Button(
     image=button_image_9,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_9 clicked"),
+    command=clear_cart,
     relief="flat"
 )
 button_9.place(
@@ -320,7 +425,7 @@ button_10 = Button(
     image=button_image_10,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_10 clicked"),
+    command=checkout_cart,
     relief="flat"
 )
 button_10.place(
@@ -405,8 +510,8 @@ canvas.create_text(
 entry_image_1 = PhotoImage(
     file=relative_to_assets("entry_1.png"))
 entry_bg_1 = canvas.create_image(
-    302.0,
-    28.5,
+    297.0,
+    28.0,
     image=entry_image_1
 )
 entry_1 = Entry(
@@ -416,10 +521,10 @@ entry_1 = Entry(
     highlightthickness=0
 )
 entry_1.place(
-    x=205.5,
-    y=9.0,
-    width=193.0,
-    height=37.0
+    x=202.0,
+    y=16.0,
+    width=190.0,
+    height=22.0
 )
 
 button_image_11 = PhotoImage(
@@ -428,7 +533,7 @@ button_11 = Button(
     image=button_image_11,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_11 clicked"),
+    command=lambda: show_options_popup(window, on_add_item=add_item_to_cart, product_name="Mocha"),
     relief="flat"
 )
 button_11.place(
@@ -437,14 +542,13 @@ button_11.place(
     width=78.0,
     height=133.0
 )
-
 button_image_12 = PhotoImage(
     file=relative_to_assets("button_12.png"))
 button_12 = Button(
     image=button_image_12,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_12 clicked"),
+    command=lambda: show_options_popup(window, on_add_item=add_item_to_cart, product_name="Macchiato"),
     relief="flat"
 )
 button_12.place(
@@ -453,14 +557,13 @@ button_12.place(
     width=78.0,
     height=133.0
 )
-
 button_image_13 = PhotoImage(
     file=relative_to_assets("button_13.png"))
 button_13 = Button(
     image=button_image_13,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_13 clicked"),
+    command=lambda: show_options_popup(window, on_add_item=add_item_to_cart, product_name="Brusko"),
     relief="flat"
 )
 button_13.place(
@@ -469,14 +572,13 @@ button_13.place(
     width=78.0,
     height=132.0
 )
-
 button_image_14 = PhotoImage(
     file=relative_to_assets("button_14.png"))
 button_14 = Button(
     image=button_image_14,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_14 clicked"),
+    command=lambda: show_options_popup(window, on_add_item=add_item_to_cart, product_name="Vanilla"),
     relief="flat"
 )
 button_14.place(
@@ -485,14 +587,13 @@ button_14.place(
     width=78.0,
     height=132.0
 )
-
 button_image_15 = PhotoImage(
     file=relative_to_assets("button_15.png"))
 button_15 = Button(
     image=button_image_15,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_15 clicked"),
+    command=lambda: show_options_popup(window, on_add_item=add_item_to_cart, product_name="Caramel"),
     relief="flat"
 )
 button_15.place(
@@ -501,14 +602,13 @@ button_15.place(
     width=78.0,
     height=132.0
 )
-
 button_image_16 = PhotoImage(
     file=relative_to_assets("button_16.png"))
 button_16 = Button(
     image=button_image_16,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_16 clicked"),
+    command=lambda: show_options_popup(window, on_add_item=add_item_to_cart, product_name="Matcha"),
     relief="flat"
 )
 button_16.place(
@@ -517,14 +617,13 @@ button_16.place(
     width=77.0,
     height=133.0
 )
-
 button_image_17 = PhotoImage(
     file=relative_to_assets("button_17.png"))
 button_17 = Button(
     image=button_image_17,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_17 clicked"),
+    command=lambda: show_options_popup(window, on_add_item=add_item_to_cart, product_name="Fudge"),
     relief="flat"
 )
 button_17.place(
@@ -533,14 +632,13 @@ button_17.place(
     width=78.0,
     height=133.0
 )
-
 button_image_18 = PhotoImage(
     file=relative_to_assets("button_18.png"))
 button_18 = Button(
     image=button_image_18,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_18 clicked"),
+    command=lambda: show_options_popup(window, on_add_item=add_item_to_cart, product_name="Spanish Latte"),
     relief="flat"
 )
 button_18.place(
