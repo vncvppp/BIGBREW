@@ -1,6 +1,17 @@
 import tkinter as tk
 from tkinter import messagebox
 from pathlib import Path
+import json
+try:
+    import keyring
+    KEYRING_AVAILABLE = True
+except Exception:
+    KEYRING_AVAILABLE = False
+try:
+    from cryptography.fernet import Fernet
+    CRYPTO_AVAILABLE = True
+except Exception:
+    CRYPTO_AVAILABLE = False
 from tkinter import Canvas, Entry, Button, PhotoImage
 import hashlib
 import bcrypt
@@ -40,6 +51,12 @@ class LoginWindow:
         self.parent = parent
         self.app = app
         self.images = []  # Keep references to images
+        # Remember-me storage
+        self.CRED_FILE = Path.home() / '.bigbrew_saved.json'
+        self.KEYRING_SERVICE = 'BIGBREW_APP'
+        # Local encryption key file for encrypted fallback
+        self.CRED_KEY_FILE = Path.home() / '.bigbrew_key'
+        self.remember_var = tk.BooleanVar(value=False)
         
     def load_image(self, path: str):
         """Load image and keep reference to prevent garbage collection"""
@@ -202,6 +219,50 @@ class LoginWindow:
         # Set focus to username entry
         self.username_entry.focus()
 
+        # Remember me checkbox
+        try:
+            self.remember_check = tk.Checkbutton(
+                self.parent,
+                text="Remember me",
+                variable=self.remember_var,
+                bg="#3A280F",
+                fg="#FFFFFF",
+                activebackground="#3A280F",
+                activeforeground="#FFFFFF",
+                selectcolor="#3A280F",
+                cursor="hand2",
+                borderwidth=0,
+                highlightthickness=0,
+                relief="flat"
+            )
+            # Left-align under the password textbox and align vertically with 'Forgot Password?'
+            # 'Forgot Password?' is at y=272.0 in this layout, keep checkbox left-aligned but same line
+            self.remember_check.place(x=63.0, y=272.0)
+        except Exception:
+            pass
+
+        # Clear saved credentials button
+        try:
+            self.clear_saved_btn = Button(
+                text="Clear saved",
+                borderwidth=0,
+                highlightthickness=0,
+                command=self.clear_saved_credentials,
+                relief="flat",
+                bg="#3A280F",
+                fg="#FFFFFF",
+                activebackground="#3A280F",
+                activeforeground="#FFFFFF",
+                cursor="hand2"
+            )
+            # Place clear saved below the checkbox and left-aligned
+            self.clear_saved_btn.place(x=63.0, y=295.0)
+        except Exception:
+            pass
+
+        # Try to load saved credentials (if any)
+        self.load_saved_credentials()
+
     def toggle_password_visibility(self):
         """Toggle password visibility"""
         self.show_password = not self.show_password
@@ -248,6 +309,11 @@ class LoginWindow:
 
         user = self.authenticate_user(username, password)
         if user:
+            # Save or clear credentials depending on Remember me
+            try:
+                self.save_credentials(username, password)
+            except Exception:
+                pass
             # Update last login based on account type
             if user.get('account_type') == 'staff':
                 db.update_last_login(user['user_id'])
@@ -257,6 +323,139 @@ class LoginWindow:
             self.app.show_dashboard(user)
         else:
             messagebox.showerror("Login Failed", "Invalid username/email or password, or account inactive")
+
+    def load_saved_credentials(self):
+        """Load saved credentials (if any) from keyring + small file tracking last username"""
+        try:
+            if self.CRED_FILE.exists():
+                data = json.loads(self.CRED_FILE.read_text())
+                saved_username = data.get('username')
+                if saved_username:
+                    saved_password = None
+                    if KEYRING_AVAILABLE:
+                        try:
+                            saved_password = keyring.get_password(self.KEYRING_SERVICE, saved_username)
+                        except Exception:
+                            saved_password = None
+                    # Encrypted-file fallback
+                    if not saved_password and data.get('password_enc') and CRYPTO_AVAILABLE:
+                        try:
+                            # ensure key exists
+                            if self.CRED_KEY_FILE.exists():
+                                key = self.CRED_KEY_FILE.read_bytes()
+                                f = Fernet(key)
+                                saved_password = f.decrypt(data.get('password_enc').encode('utf-8')).decode('utf-8')
+                        except Exception:
+                            saved_password = None
+                    # Legacy/plaintext fallback (insecure)
+                    if not saved_password and data.get('password'):
+                        saved_password = data.get('password')
+
+                if saved_username:
+                    # populate fields
+                    self.username_entry.delete(0, 'end')
+                    self.username_entry.insert(0, saved_username)
+                    self.username_entry.config(fg="#000716")
+                if saved_password:
+                    self.password_entry.delete(0, 'end')
+                    self.password_entry.insert(0, saved_password)
+                    self.remember_var.set(True)
+        except Exception as e:
+            print("Error loading saved credentials:", e)
+
+    def save_credentials(self, username, password):
+        """Save or clear credentials depending on Remember me checkbox"""
+        try:
+            if self.remember_var.get():
+                if KEYRING_AVAILABLE:
+                    try:
+                        keyring.set_password(self.KEYRING_SERVICE, username, password)
+                        # write last username to file
+                        self.CRED_FILE.write_text(json.dumps({'username': username}))
+                    except Exception as e:
+                        print("Keyring save failed:", e)
+                        # fallback to encrypted file if available
+                        if CRYPTO_AVAILABLE:
+                            try:
+                                if not self.CRED_KEY_FILE.exists():
+                                    key = Fernet.generate_key()
+                                    self.CRED_KEY_FILE.write_bytes(key)
+                                else:
+                                    key = self.CRED_KEY_FILE.read_bytes()
+                                f = Fernet(key)
+                                token = f.encrypt(password.encode('utf-8')).decode('utf-8')
+                                self.CRED_FILE.write_text(json.dumps({'username': username, 'password_enc': token}))
+                            except Exception as ee:
+                                print('Encrypted fallback failed:', ee)
+                                self.CRED_FILE.write_text(json.dumps({'username': username, 'password': password}))
+                        else:
+                            # fallback: write username & password (insecure)
+                            self.CRED_FILE.write_text(json.dumps({'username': username, 'password': password}))
+                else:
+                    # No keyring available: try encrypted local file
+                    if CRYPTO_AVAILABLE:
+                        try:
+                            if not self.CRED_KEY_FILE.exists():
+                                key = Fernet.generate_key()
+                                self.CRED_KEY_FILE.write_bytes(key)
+                            else:
+                                key = self.CRED_KEY_FILE.read_bytes()
+                            f = Fernet(key)
+                            token = f.encrypt(password.encode('utf-8')).decode('utf-8')
+                            self.CRED_FILE.write_text(json.dumps({'username': username, 'password_enc': token}))
+                        except Exception as e:
+                            print('Encrypted save failed:', e)
+                            # Last-resort plaintext fallback
+                            self.CRED_FILE.write_text(json.dumps({'username': username, 'password': password}))
+                    else:
+                        # No crypto available: store plaintext (insecure)
+                        self.CRED_FILE.write_text(json.dumps({'username': username, 'password': password}))
+            else:
+                # clear saved credentials
+                try:
+                    if KEYRING_AVAILABLE:
+                        try:
+                            keyring.delete_password(self.KEYRING_SERVICE, username)
+                        except Exception:
+                            pass
+                finally:
+                    if self.CRED_FILE.exists():
+                        try:
+                            self.CRED_FILE.unlink()
+                        except Exception:
+                            pass
+        except Exception as e:
+            print("Error saving credentials:", e)
+
+    def clear_saved_credentials(self):
+        """Manual clear of saved credentials and file"""
+        try:
+            # Try to remove from keyring using username in file
+            if self.CRED_FILE.exists():
+                try:
+                    data = json.loads(self.CRED_FILE.read_text())
+                    uname = data.get('username')
+                    if uname and KEYRING_AVAILABLE:
+                        try:
+                            keyring.delete_password(self.KEYRING_SERVICE, uname)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+                try:
+                    self.CRED_FILE.unlink()
+                except Exception:
+                    pass
+            # Optionally remove encryption key file (keep for reuse) - we'll keep it to avoid losing access
+            # Clear UI fields
+            self.username_entry.delete(0, 'end')
+            self.username_entry.insert(0, 'Username or Email')
+            self.username_entry.config(fg="#666666")
+            self.password_entry.delete(0, 'end')
+            self.remember_var.set(False)
+            messagebox.showinfo('Saved credentials', 'Saved credentials cleared')
+        except Exception as e:
+            print('Error clearing saved credentials:', e)
 
     def authenticate_user(self, username, password):
         """Authenticate user credentials - checks both users and customers tables"""

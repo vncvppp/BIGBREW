@@ -673,41 +673,39 @@ class CustomerHome:
     def logout(self):
         """Logout customer"""
         if messagebox.askyesno("Logout", "Are you sure you want to logout?"):
-            if self.app and hasattr(self.app, 'logout'):
-                self.app.logout()
-            else:
-                # Fallback if app reference is not available
-                self.parent.destroy()
-                from main import BigBrewApp
-                app = BigBrewApp()
-                app.show_login()
-                app.run()
+            self.app.logout()
     
     def destroy(self):
         """Clean up the customer home window"""
         for widget in self.parent.winfo_children():
             widget.destroy()
 
-# Main application entry point
+# For testing purposes
 if __name__ == "__main__":
-    from main import BigBrewApp
-    
-    # Create main app instance to handle navigation
-    app = BigBrewApp()
-    
-    # Use actual customer data from the active session
-    customer_data = {
+    # Sample customer data for testing
+    sample_customer = {
         'customer_id': 1,
-        'customer_code': 'CUST-2025102121827',
-        'email': 'pelimavenice.pdm@gmail.com',
-        'first_name': 'Customer',
-        'last_name': 'User',
-        'customer_type': 'REGULAR',
-        'loyalty_points': 0,
-        'total_spent': 0.00,
-        'account_type': 'customer'  # Required for proper routing
+        'customer_code': 'CUST-20241201120000',
+        'username': 'john.doe',
+        'email': 'john.doe@email.com',
+        'first_name': 'John',
+        'last_name': 'Doe',
+        'customer_type': 'regular',
+        'loyalty_points': 150,
+        'total_spent': 250.75,
+        'account_type': 'customer'
     }
     
-    # Show customer home through the main app
-    app.show_customer_home(customer_data)
-    app.run()
+    class MockApp:
+        def logout(self):
+            print("Mock logout called")
+    
+    root = tk.Tk()
+    root.title("BigBrew Customer Home - Test")
+    root.geometry("1035x534")
+    root.configure(bg="#FFFFFF")
+    
+    app = MockApp()
+    customer_home = CustomerHome(root, sample_customer, app)
+    
+    root.mainloop()

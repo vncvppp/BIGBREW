@@ -307,14 +307,25 @@ class BigBrewApp:
         self.current_user = None
         self.user_type = None
 
-        # Clear any pending operations
-        self.root.after_cancel('all')
+        # Clean up current module (destroy widgets, close child windows)
+        try:
+            self.cleanup_current_module()
+        except Exception:
+            pass
 
-        self.root.state('normal')
-        self.root.attributes('-fullscreen', False)
+        # Ensure window is in a normal state
+        try:
+            self.root.state('normal')
+            self.root.attributes('-fullscreen', False)
+        except Exception:
+            pass
 
         # Force window update
-        self.root.update_idletasks()
+        try:
+            self.root.update_idletasks()
+            self.root.update()
+        except Exception:
+            pass
 
         # Show login screen
         self.show_login()
