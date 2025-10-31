@@ -7,7 +7,7 @@ from pathlib import Path
 
 # from tkinter import *
 # Explicit imports to satisfy Flake8
-from tkinter import Tk, Canvas, Entry, Text, Button, PhotoImage
+from tkinter import Tk, Canvas, Entry, Text, Button, PhotoImage, Frame, Scrollbar
 from pop_up import show_options_popup  # Add this import
 from tkinter import messagebox  # Add this import after existing imports
 import tempfile
@@ -303,6 +303,45 @@ image_5 = canvas.create_image(
     image=image_image_5
 )
 
+# --- Scrollable cart area (only for cart items; totals remain fixed) ---
+cart_container = Frame(window, bg="#EFE8D8")
+cart_container.place(x=772, y=120, width=225, height=220)
+
+cart_scrollbar = Scrollbar(cart_container, orient="vertical")
+cart_scrollbar.pack(side="right", fill="y")
+
+cart_canvas = Canvas(
+    cart_container,
+    bg="#EFE8D8",
+    bd=0,
+    highlightthickness=0,
+    yscrollcommand=cart_scrollbar.set,
+)
+cart_canvas.pack(side="left", fill="both", expand=True)
+cart_scrollbar.config(command=cart_canvas.yview)
+
+# Mouse wheel scrolling only when pointer is over the cart canvas
+def _on_cart_mousewheel(event):
+    try:
+        cart_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+    except Exception:
+        pass
+
+def _bind_cart_wheel(_event=None):
+    try:
+        cart_canvas.bind_all("<MouseWheel>", _on_cart_mousewheel)
+    except Exception:
+        pass
+
+def _unbind_cart_wheel(_event=None):
+    try:
+        cart_canvas.unbind_all("<MouseWheel>")
+    except Exception:
+        pass
+
+cart_canvas.bind("<Enter>", _bind_cart_wheel)
+cart_canvas.bind("<Leave>", _unbind_cart_wheel)
+
 # -------------- Cart state, add, and render, matching order.py -------------------
 cart_items = []  # Each: {name, size, price, qty}
 cart_item_canvas_ids = []
@@ -310,6 +349,14 @@ add_on_total_amount = 0.0
 _add_on_amount_text_id = None
 _subtotal_amount_text_id = None
 _total_amount_text_id = None
+
+def abbreviate_text(text, max_chars=24):
+    try:
+        if len(text) <= max_chars:
+            return text
+        return text[: max_chars - 1] + "…"
+    except Exception:
+        return text
 
 def add_item_to_cart(item):
     global add_on_total_amount
@@ -348,48 +395,90 @@ def change_item_qty(idx, delta):
         render_cart()
 
 def render_cart():
+    # Clear only the cart items canvas, not the main canvas
     for cid in cart_item_canvas_ids:
         try:
-            canvas.delete(cid)
-        except: pass
+            cart_canvas.delete(cid)
+        except:
+            pass
     cart_item_canvas_ids.clear()
 
-    left_x, right_x = 780, 995
-    y, card_height, v_gap = 120, 70, 14
+    # Local coordinates inside the cart_canvas
+    left_x, right_x = 10, 215
+    y, card_height, v_gap = 0, 70, 14
     for idx, it in enumerate(cart_items):
         # Card bg
-        bg = canvas.create_rectangle(left_x, y, right_x, y+card_height, fill="#ECE3D1", outline="", width=0)
+        bg = cart_canvas.create_rectangle(
+            left_x, y, right_x, y + card_height, fill="#ECE3D1", outline="", width=0
+        )
         cart_item_canvas_ids.append(bg)
         # Name (Size)
-        title = f"{it['name']}  ({it.get('size','Regular')})"
-        t1 = canvas.create_text(left_x+16, y+12, anchor="nw", text=title, fill="#1E1E1E", font=("Poppins SemiBold", 12*-1))
+        full_title = f"{it['name']}  ({it.get('size','Regular')})"
+        title = abbreviate_text(full_title, 24)
+        t1 = cart_canvas.create_text(
+            left_x + 16,
+            y + 12,
+            anchor="nw",
+            text=title,
+            fill="#1E1E1E",
+            font=("Poppins SemiBold", 11 * -1),
+        )
         cart_item_canvas_ids.append(t1)
         # Price right
         price_str = f"₱{it['price']:.2f}"
-        tprice = canvas.create_text(right_x-16, y+12, anchor="ne", text=price_str, fill="#1E1E1E", font=("Poppins SemiBold", 12*-1))
+        tprice = cart_canvas.create_text(
+            right_x - 16,
+            y + 12,
+            anchor="ne",
+            text=price_str,
+            fill="#1E1E1E",
+            font=("Poppins SemiBold", 12 * -1),
+        )
         cart_item_canvas_ids.append(tprice)
         # Qty line
         qty_line = f"{it['qty']}  x  ₱{it['price']:.2f}"
-        t2 = canvas.create_text(left_x+16, y+36, anchor="nw", text=qty_line, fill="#9A9A9B", font=("Poppins Regular", 11*-1))
+        t2 = cart_canvas.create_text(
+            left_x + 16,
+            y + 36,
+            anchor="nw",
+            text=qty_line,
+            fill="#9A9A9B",
+            font=("Poppins Regular", 11 * -1),
+        )
         cart_item_canvas_ids.append(t2)
         # Minus
-        minus_circ = canvas.create_oval(right_x-64, y+36, right_x-40, y+60, outline="#9A9A9B", width=2)
-        minus_line = canvas.create_line(right_x-60, y+48, right_x-44, y+48, fill="#9A9A9B", width=2)
+        minus_circ = cart_canvas.create_oval(
+            right_x - 64, y + 36, right_x - 40, y + 60, outline="#9A9A9B", width=2
+        )
+        minus_line = cart_canvas.create_line(
+            right_x - 60, y + 48, right_x - 44, y + 48, fill="#9A9A9B", width=2
+        )
         cart_item_canvas_ids.extend([minus_circ, minus_line])
         # Plus
-        plus_circ = canvas.create_oval(right_x-32, y+36, right_x-8, y+60, outline="#9A9A9B", width=2)
-        plus_h = canvas.create_line(right_x-28, y+48, right_x-12, y+48, fill="#9A9A9B", width=2)
-        plus_v = canvas.create_line(right_x-20, y+40, right_x-20, y+56, fill="#9A9A9B", width=2)
+        plus_circ = cart_canvas.create_oval(
+            right_x - 32, y + 36, right_x - 8, y + 60, outline="#9A9A9B", width=2
+        )
+        plus_h = cart_canvas.create_line(
+            right_x - 28, y + 48, right_x - 12, y + 48, fill="#9A9A9B", width=2
+        )
+        plus_v = cart_canvas.create_line(
+            right_x - 20, y + 40, right_x - 20, y + 56, fill="#9A9A9B", width=2
+        )
         cart_item_canvas_ids.extend([plus_circ, plus_h, plus_v])
         # Bind add/subtract
         def bind_click(tag_id, cb):
-            canvas.tag_bind(tag_id, "<Button-1>", lambda _e: cb())
+            cart_canvas.tag_bind(tag_id, "<Button-1>", lambda _e: cb())
         bind_click(minus_circ, lambda i=idx: change_item_qty(i, -1))
         bind_click(minus_line, lambda i=idx: change_item_qty(i, -1))
         bind_click(plus_circ, lambda i=idx: change_item_qty(i, +1))
         bind_click(plus_h, lambda i=idx: change_item_qty(i, +1))
         bind_click(plus_v, lambda i=idx: change_item_qty(i, +1))
         y += card_height + v_gap
+    # Update scrollable area
+    try:
+        cart_canvas.configure(scrollregion=(0, 0, 225, y))
+    except Exception:
+        pass
     update_totals()
 
 def update_totals():

@@ -7,7 +7,7 @@ from pathlib import Path
 
 # from tkinter import *
 # Explicit imports to satisfy Flake8
-from tkinter import Tk, Canvas, Entry, Text, Button, PhotoImage, Radiobutton, StringVar
+from tkinter import Tk, Canvas, Entry, Text, Button, PhotoImage, Radiobutton, StringVar, Frame, Scrollbar
 import sys
 import json
 
@@ -24,6 +24,17 @@ def run_checkout(cart_items):
     window = Tk()
     window.geometry("399x528")
     window.configure(bg="#FFF8E7")
+    # Center window on screen
+    try:
+        window.update_idletasks()
+        w, h = 399, 528
+        sw = window.winfo_screenwidth()
+        sh = window.winfo_screenheight()
+        x = int((sw - w) / 2)
+        y = int((sh - h) / 2)
+        window.geometry(f"{w}x{h}+{x}+{y}")
+    except Exception:
+        pass
     canvas = Canvas(
         window,
         bg="#FFF8E7",
@@ -47,21 +58,55 @@ def run_checkout(cart_items):
         price = float(item.get("price", 0))
         order_lines.append(f"- {name} ({size}) x {qty} ₱{price * qty:,.2f}")
         subtotal += price * qty
-    summary = "\n".join(order_lines)
-    summary += f"\n\nSubtotal: ₱{subtotal:,.2f}\nTotal: ₱{subtotal:,.2f}\n\nPayment:"  # assuming no add-ons
+    # Text for scrollable list (order lines only)
+    summary_list = "\n".join(order_lines)
+
+    # Scrollable order list panel to prevent overlap with payment options
+    list_container = Frame(window, bg="#FFF8E7")
+    list_container.place(x=37, y=75, width=325, height=250)
+
+    list_scrollbar = Scrollbar(list_container, orient="vertical")
+    list_scrollbar.pack(side="right", fill="y")
+
+    summary_text = Text(
+        list_container,
+        wrap="word",
+        bd=0,
+        highlightthickness=0,
+        font=("Inter", 16 * -1),
+        bg="#FFF8E7",
+        yscrollcommand=list_scrollbar.set,
+    )
+    summary_text.pack(side="left", fill="both", expand=True)
+    list_scrollbar.config(command=summary_text.yview)
+    summary_text.insert("1.0", summary_list)
+    summary_text.config(state="disabled")
+    # Static (non-scrollable) totals and Payment label
     canvas.create_text(
-        39.0, 75.0, anchor="nw", text=summary, fill="#1E1E1E", font=("Inter", 16 * -1)
+        37.0, 330.0, anchor="nw",
+        text=f"Subtotal: ₱{subtotal:,.2f}",
+        fill="#1E1E1E", font=("Inter", 16 * -1)
+    )
+    canvas.create_text(
+        37.0, 350.0, anchor="nw",
+        text=f"Total: ₱{subtotal:,.2f}",
+        fill="#1E1E1E", font=("Inter", 16 * -1)
+    )
+    canvas.create_text(
+        37.0, 378.0, anchor="nw",
+        text="Payment:",
+        fill="#1E1E1E", font=("Inter", 16 * -1)
     )
     # Payment method (radio buttons) - exclusive (cannot unselect all)
     pay_method = StringVar(value="Cash")
-    y_base = 220
-    methods = ["Cash", "GCash", "Card (Visa/Mastercard)"]
+    y_base = 405
+    methods = ["Cash", "GCash", "Card (Visa)"]
     for idx, txt in enumerate(methods):
         rb = Radiobutton(
             window, text=txt, variable=pay_method, value=txt,
             anchor="w", font=("Inter", 16 * -1), bg="#FFF8E7"
         )
-        rb.place(x=80, y=y_base + 31*idx)
+        rb.place(x=37, y=y_base + 31*idx)
     # button_1 = Close
     button_image_1 = PhotoImage(file=relative_to_assets("button_1.png"))
     def close_window():

@@ -26,6 +26,28 @@ def show_options_popup(parent, on_add_item=None, product_name=None):
     top.geometry("399x262")
     top.configure(bg = "#FFF8E7")
 
+    # Center the popup relative to parent (fallback to screen center)
+    try:
+        top.update_idletasks()
+        w, h = 399, 262
+        # Prefer centering over the parent window if available
+        try:
+            px = parent.winfo_rootx()
+            py = parent.winfo_rooty()
+            pw = parent.winfo_width()
+            ph = parent.winfo_height()
+            x = int(px + (pw - w) / 2)
+            y = int(py + (ph - h) / 2)
+        except Exception:
+            # Center on screen
+            sw = top.winfo_screenwidth()
+            sh = top.winfo_screenheight()
+            x = int((sw - w) / 2)
+            y = int((sh - h) / 2)
+        top.geometry(f"{w}x{h}+{x}+{y}")
+    except Exception:
+        pass
+
     # Optional: keep the popup on top of the parent
     try:
         top.transient(parent)
@@ -180,10 +202,9 @@ def show_options_popup(parent, on_add_item=None, product_name=None):
             price = 39.00 if size == "Large" else 29.00
             # Price stays base; extra shot is a separate add-on line for Coffee
             item_name = product_name or "Chocolate"
-            # If the Extra Shot checkbox is checked (in menu_coffee context),
-            # append the "w ES" suffix to the item name for clarity.
+            # If extra shot is selected, reflect in item name visually (no price change)
             try:
-                if show_extra_option and add_extra_var.get():
+                if add_extra_var.get():
                     item_name = f"{item_name} w ES"
             except Exception:
                 pass
