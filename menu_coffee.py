@@ -306,8 +306,21 @@ image_5 = canvas.create_image(
 # -------------- Cart state, add, and render, matching order.py -------------------
 cart_items = []  # Each: {name, size, price, qty}
 cart_item_canvas_ids = []
+add_on_total_amount = 0.0
+_add_on_amount_text_id = None
+_subtotal_amount_text_id = None
+_total_amount_text_id = None
 
 def add_item_to_cart(item):
+    global add_on_total_amount
+    # Treat add-ons as amount-only; don't add a cart line
+    if item.get('is_add_on'):
+        try:
+            add_on_total_amount += float(item.get('price', 0)) * int(item.get('qty', 1))
+        except Exception:
+            pass
+        render_cart()
+        return
     # If same name+size+price exists, increment qty; else append
     for it in cart_items:
         if (
@@ -377,10 +390,29 @@ def render_cart():
         bind_click(plus_h, lambda i=idx: change_item_qty(i, +1))
         bind_click(plus_v, lambda i=idx: change_item_qty(i, +1))
         y += card_height + v_gap
+    update_totals()
+
+def update_totals():
+    try:
+        subtotal = 0.0
+        for it in cart_items:
+            if not it.get('is_add_on'):
+                subtotal += float(it.get('price', 0)) * int(it.get('qty', 1))
+        total = subtotal + add_on_total_amount
+        if _add_on_amount_text_id is not None:
+            canvas.itemconfigure(_add_on_amount_text_id, text=f"₱{add_on_total_amount:.2f}")
+        if _subtotal_amount_text_id is not None:
+            canvas.itemconfigure(_subtotal_amount_text_id, text=f"₱{subtotal:.2f}")
+        if _total_amount_text_id is not None:
+            canvas.itemconfigure(_total_amount_text_id, text=f"₱{total:.2f}")
+    except Exception:
+        pass
 
 def clear_cart():
+    global add_on_total_amount
     try:
         cart_items.clear()
+        add_on_total_amount = 0.0
         render_cart()
     except Exception:
         pass
@@ -394,7 +426,21 @@ def checkout_cart():
         return
     # Write cart_items to a temp file
     with tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".json") as tf:
-        json.dump(cart_items, tf)
+        try:
+            export_items = list(cart_items)
+            # Add a single consolidated Add-On line for checkout to match totals
+            if add_on_total_amount and add_on_total_amount > 0:
+                export_items.append({
+                    'name': 'Add-On',
+                    'size': '-',
+                    'price': float(add_on_total_amount),
+                    'qty': 1,
+                    'is_add_on': True
+                })
+            json.dump(export_items, tf)
+        except Exception:
+            # Fallback to original behavior
+            json.dump(cart_items, tf)
         temp_path = tf.name
     script_path = os.path.join(os.path.dirname(__file__), "checkout.py")
     subprocess.Popen([sys.executable, script_path, temp_path])
@@ -444,7 +490,7 @@ canvas.create_text(
     font=("Poppins Regular", 12 * -1)
 )
 
-canvas.create_text(
+_add_on_amount_text_id = canvas.create_text(
     936.0,
     371.0,
     anchor="nw",
@@ -462,7 +508,7 @@ canvas.create_text(
     font=("Poppins Regular", 12 * -1)
 )
 
-canvas.create_text(
+_subtotal_amount_text_id = canvas.create_text(
     936.2900390625,
     350.3536376953125,
     anchor="nw",
@@ -471,7 +517,7 @@ canvas.create_text(
     font=("Poppins Regular", 12 * -1)
 )
 
-canvas.create_text(
+_total_amount_text_id = canvas.create_text(
     936.2900390625,
     414.5302734375,
     anchor="nw",

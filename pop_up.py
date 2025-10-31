@@ -4,6 +4,8 @@
 
 
 from pathlib import Path
+import inspect
+import os
 
 # from tkinter import *
 # Explicit imports to satisfy Flake8
@@ -99,9 +101,17 @@ def show_options_popup(parent, on_add_item=None, product_name=None):
         height=35.0
     )
 
-    # Interactive checkbox for Add Extra Shot (Coffee-only)
+    # Interactive checkbox for Add Extra Shot (only when called from menu_coffee.py)
     add_extra_var = BooleanVar(master=top, value=False)
-    is_coffee = bool(product_name and ("coffee" in str(product_name).lower()))
+    show_extra_option = False
+    try:
+        for frame_info in inspect.stack():
+            filename = frame_info.filename or ""
+            if filename.endswith("menu_coffee.py") or filename.endswith(os.sep + "menu_coffee.py"):
+                show_extra_option = True
+                break
+    except Exception:
+        pass
     checkbox = Checkbutton(
         top,
         variable=add_extra_var,
@@ -116,8 +126,8 @@ def show_options_popup(parent, on_add_item=None, product_name=None):
     _extra_shot_added = {"done": False}
 
     def on_extra_toggle():
-        # Only add once when checked, and only for Coffee
-        if not is_coffee:
+        # Only add once when checked, and only for menu_coffee
+        if not show_extra_option:
             return
         try:
             if add_extra_var.get() and not _extra_shot_added["done"]:
@@ -135,41 +145,32 @@ def show_options_popup(parent, on_add_item=None, product_name=None):
         except Exception:
             pass
 
-    if is_coffee:
+    if show_extra_option:
         checkbox.configure(command=on_extra_toggle)
         checkbox.place(x=40.0, y=146.0)
+        text_id_1 = canvas.create_text(
+            68.0,
+            146.0,
+            anchor="nw",
+            text="Add Extra Shot",
+            fill="#1E1E1E",
+            font=("Inter", 16 * -1)
+        )
+        text_id_2 = canvas.create_text(
+            68.0,
+            168.0,
+            anchor="nw",
+            text="(+₱5.00)",
+            fill="#757575",
+            font=("Inter", 16 * -1)
+        )
+        canvas.tag_bind(text_id_1, "<Button-1>", lambda _e: (add_extra_var.set(not add_extra_var.get()), on_extra_toggle()))
+        canvas.tag_bind(text_id_2, "<Button-1>", lambda _e: (add_extra_var.set(not add_extra_var.get()), on_extra_toggle()))
     else:
-        # Hide checkbox for non-coffee items
         try:
             checkbox.place_forget()
         except Exception:
             pass
-
-    text_id_1 = canvas.create_text(
-        68.0,
-        146.0,
-        anchor="nw",
-        text="Add Extra Shot",
-        fill="#1E1E1E",
-        font=("Inter", 16 * -1)
-    )
-
-    text_id_2 = canvas.create_text(
-        68.0,
-        168.0,
-        anchor="nw",
-        text="(+₱5.00)",
-        fill="#757575",
-        font=("Inter", 16 * -1)
-    )
-
-    # For Coffee: make labels toggle the checkbox and potentially add extra
-    if is_coffee:
-        canvas.tag_bind(text_id_1, "<Button-1>", lambda _e: (add_extra_var.set(not add_extra_var.get()), on_extra_toggle()))
-        canvas.tag_bind(text_id_2, "<Button-1>", lambda _e: (add_extra_var.set(not add_extra_var.get()), on_extra_toggle()))
-    else:
-        # Disable label clicks for non-coffee; visually could remain as text
-        pass
 
     button_image_3 = PhotoImage(
     file=relative_to_assets("button_3.png"))
