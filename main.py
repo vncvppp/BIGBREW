@@ -241,9 +241,9 @@ class BigBrewApp:
         self.clear_window()
 
         # Resize window for customer home
-        self.root.geometry("1000x700")
-        self.center_window(1000, 700)
-        self.root.minsize(1000, 700)
+        self.root.geometry("1035x534")
+        self.center_window(1035, 534)
+        self.root.minsize(1035, 534)
         self.root.resizable(False, False)
 
         # Give time for window to resize
