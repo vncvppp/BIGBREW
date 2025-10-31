@@ -80,8 +80,21 @@ def run_checkout(cart_items):
         if not pay_method.get():
             mbox.showinfo("Select Payment", "Please select a payment method.")
             return
+        # Show confirmation
         mbox.showinfo("Checkout", f"Order confirmed! Payment: {pay_method.get()}")
+
+        # Close checkout window
         window.destroy()
+
+        # Reopen the customer home screen
+        try:
+            import subprocess, os, sys
+            home_script = os.path.join(OUTPUT_PATH, "home.py")
+            if os.path.exists(home_script):
+                subprocess.Popen([sys.executable, home_script], cwd=str(OUTPUT_PATH))
+        except Exception:
+            # Silently ignore if home cannot be opened; order is already confirmed
+            pass
     button_2 = Button(
         image=button_image_2, borderwidth=0,
         highlightthickness=0, command=confirm_action, relief="flat"

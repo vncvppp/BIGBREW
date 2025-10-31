@@ -96,6 +96,14 @@ class CustomerHome:
         # Configure parent window
         self.parent.configure(bg="#FFFFFF")
         self.parent.geometry("1035x534")
+        # Lock exact window size to avoid extra whitespace and layout drift
+        try:
+            self.parent.resizable(False, False)
+            self.parent.minsize(1035, 534)
+            self.parent.maxsize(1035, 534)
+        except Exception:
+            # If running in an environment that does not support these, ignore
+            pass
         
         # Create canvas
         self.canvas = tk.Canvas(
