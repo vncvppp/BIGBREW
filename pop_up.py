@@ -123,27 +123,11 @@ def show_options_popup(parent, on_add_item=None, product_name=None):
         bd=0,
         takefocus=0
     )
+    # Track extra shot; only apply when user clicks Add
     _extra_shot_added = {"done": False}
-
     def on_extra_toggle():
-        # Only add once when checked, and only for menu_coffee
-        if not show_extra_option:
-            return
-        try:
-            if add_extra_var.get() and not _extra_shot_added["done"]:
-                size = selected_size.get("value") or "Regular"
-                item_name_local = product_name or "Coffee"
-                if on_add_item:
-                    on_add_item({
-                        "name": f"{item_name_local} - Extra Shot",
-                        "size": size,
-                        "price": 5.00,
-                        "qty": 1,
-                        "is_add_on": True
-                    })
-                _extra_shot_added["done"] = True
-        except Exception:
-            pass
+        # No-op here; we apply the extra on Add
+        return
 
     if show_extra_option:
         checkbox.configure(command=on_extra_toggle)
@@ -178,14 +162,27 @@ def show_options_popup(parent, on_add_item=None, product_name=None):
         try:
             size = selected_size.get("value") or "Regular"
             price = 39.00 if size == "Large" else 29.00
-            # Price stays base; extra shot is a separate add-on line for Coffee
             item_name = product_name or "Chocolate"
             if on_add_item:
+                # If extra shot selected, first add the add-on amount-only line
+                if add_extra_var.get():
+                    try:
+                        on_add_item({
+                            "name": f"{item_name} - Extra Shot",
+                            "size": size,
+                            "price": 5.00,
+                            "qty": 1,
+                            "is_add_on": True
+                        })
+                    except Exception:
+                        pass
+                # Add the base item; mark if it has extra shot so cart title can show "w ES"
                 on_add_item({
                     "name": item_name,
                     "size": size,
                     "price": price,
-                    "qty": 1
+                    "qty": 1,
+                    "has_extra_shot": bool(add_extra_var.get())
                 })
         finally:
             top.destroy()

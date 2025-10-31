@@ -326,7 +326,8 @@ def add_item_to_cart(item):
         if (
             it['name'] == item['name'] and 
             it.get('size','Regular') == item.get('size','Regular') and 
-            float(it.get('price',0)) == float(item.get('price',0))
+            float(it.get('price',0)) == float(item.get('price',0)) and
+            bool(it.get('has_extra_shot', False)) == bool(item.get('has_extra_shot', False))
         ):
             it['qty'] += item.get('qty', 1)
             break
@@ -336,7 +337,8 @@ def add_item_to_cart(item):
             'size': item.get('size','Regular'),
             'price': float(item['price']),
             'qty': int(item.get('qty',1)),
-            'is_add_on': item.get('is_add_on', False)
+            'is_add_on': item.get('is_add_on', False),
+            'has_extra_shot': bool(item.get('has_extra_shot', False))
         })
     render_cart()
 
@@ -360,8 +362,13 @@ def render_cart():
         # Card bg
         bg = canvas.create_rectangle(left_x, y, right_x, y+card_height, fill="#ECE3D1", outline="", width=0)
         cart_item_canvas_ids.append(bg)
-        # Name (Size)
-        title = f"{it['name']}  ({it.get('size','Regular')})"
+        # Name with size and optional extra shot marker
+        size_value = it.get('size','Regular')
+        size_abbrev = 'Reg' if str(size_value).lower().startswith('reg') else ('Lg' if str(size_value).lower().startswith('l') else str(size_value))
+        if it.get('has_extra_shot'):
+            title = f"{it['name']}  ({size_abbrev}) w ES"
+        else:
+            title = f"{it['name']}  ({size_abbrev})"
         t1 = canvas.create_text(left_x+16, y+12, anchor="nw", text=title, fill="#1E1E1E", font=("Poppins SemiBold", 12*-1))
         cart_item_canvas_ids.append(t1)
         # Price right
