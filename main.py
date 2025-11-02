@@ -13,6 +13,7 @@ from signup import SignupWindow
 from forgotpass import ForgotPasswordWindow
 from resetpass import PasswordResetWindow
 from config import DB_CONFIG, APP_CONFIG
+from db_config import db
 import os, sys
 import time
 from pathlib import Path
@@ -299,34 +300,58 @@ class BigBrewApp:
             self.show_dashboard(self.current_user)
 
     def logout(self):
-        """Logout user and return to login - resize to login size"""
+        """Handle user logout properly"""
         print("Logging out user...")  # Debug
-        if self.current_user and APP_CONFIG['debug']:
-            print(f"✓ User logged out: {self.current_user['email']}")
+        
+        # Update last login in database before logging out
+        if self.current_user:
+            if APP_CONFIG['debug']:
+                print(f"✓ User logging out: {self.current_user.get('email', 'unknown')}")
+                
+            try:
+                if self.current_user.get('account_type') == 'staff':
+                    db.update_last_login(self.current_user['user_id'])
+                elif self.current_user.get('account_type') == 'customer':
+                    db.update_customer_last_login(self.current_user['customer_id'])
+            except Exception as e:
+                if APP_CONFIG['debug']:
+                    print(f"Failed to update last login: {e}")
 
+        # Clear user data and state
         self.current_user = None
         self.user_type = None
 
         # Clean up current module (destroy widgets, close child windows)
         try:
             self.cleanup_current_module()
-        except Exception:
-            pass
+        except Exception as e:
+            if APP_CONFIG['debug']:
+                print(f"Error cleaning up module: {e}")
 
-        # Ensure window is in a normal state
+        # Reset window state
         try:
+            # Ensure window is in normal state (not maximized/minimized)
             self.root.state('normal')
             self.root.attributes('-fullscreen', False)
-        except Exception:
-            pass
-
-        # Force window update
-        try:
+            
+            # Reset geometry to login size
+            self.resize_window(*self.login_size)
+            
+            # Reset minimum size constraints
+            self.root.minsize(800, 440)
+            self.root.resizable(False, False)
+            
+            # Force update to ensure changes take effect
             self.root.update_idletasks()
             self.root.update()
-        except Exception:
-            pass
-
+            
+        except Exception as e:
+            if APP_CONFIG['debug']:
+                print(f"Error resetting window state: {e}")
+                
+        if APP_CONFIG['debug']:
+            print("✓ Logout completed successfully")
+            
         # Show login screen
         self.show_login()
 

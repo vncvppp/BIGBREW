@@ -1,1 +1,1 @@
-{"cart_items": [{"name": "Brusko", "size": "Regular", "price": 29.0, "qty": 1, "is_add_on": false}, {"name": "Mocha", "size": "Large", "price": 39.0, "qty": 1, "is_add_on": false}, {"name": "Spanish Latte", "size": "Regular", "price": 29.0, "qty": 1, "is_add_on": false}, {"name": "Fudge", "size": "Regular", "price": 29.0, "qty": 1, "is_add_on": false}], "add_on_total_amount": 0.0}
+{"cart_items": [], "add_on_total_amount": 0.0}

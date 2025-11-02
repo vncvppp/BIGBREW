@@ -625,7 +625,9 @@ class AdminDashboard(BaseDashboard):
         messagebox.showinfo("System Settings", "System settings functionality will be implemented here")
         
     def view_reports(self):
-        messagebox.showinfo("Reports", "Reports and analytics functionality will be implemented here")
+        """Open the reports and analytics window"""
+        from reports import ReportsAnalytics
+        reports = ReportsAnalytics(self.window)
         
     def database_tools(self):
         messagebox.showinfo("Database Tools", "Database management tools will be implemented here")

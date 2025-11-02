@@ -1,103 +1,119 @@
-from pathlib import Path
+"""
+Shared state manager for shopping cart functionality.
+Maintains cart items and related state that needs to be shared between
+different parts of the application.
+"""
+
 import json
-import tempfile
 import os
+from datetime import datetime
 
-# File-backed shared cart state used across subprocess windows.
-# Keeps a JSON file `shared_cart.json` in the project root.
-
-CART_PATH = Path(__file__).parent / "shared_cart.json"
-
-def _default_state():
-    return {"cart_items": [], "add_on_total_amount": 0.0}
-
-def load_state():
-    try:
-        if CART_PATH.exists():
-            with CART_PATH.open("r", encoding="utf-8") as f:
-                return json.load(f)
-    except Exception:
-        pass
-    return _default_state()
-
-def save_state(state: dict):
-    try:
-        # atomic write
-        dirp = CART_PATH.parent
-        fd, tmppath = tempfile.mkstemp(dir=dirp)
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(state, f)
-        # move into place
-        os.replace(tmppath, CART_PATH)
-    except Exception:
-        # best-effort; ignore to avoid crashing UIs
-        try:
-            with CART_PATH.open("w", encoding="utf-8") as f:
-                json.dump(state, f)
-        except Exception:
-            pass
+# Global state dictionary
+_state = {
+    "cart_items": [],  # List of items in cart
+    "add_on_total_amount": 0.0,  # Total amount for add-ons
+}
 
 def get_state():
-    return load_state()
+    """Get the current state dictionary"""
+    return _state
 
-def add_item(item: dict):
-    s = load_state()
-    if item.get("is_add_on"):
-        try:
-            s["add_on_total_amount"] = float(s.get("add_on_total_amount", 0.0)) + float(item.get("price", 0)) * int(item.get("qty", 1))
-        except Exception:
-            pass
-        save_state(s)
-        return s
+def add_item(item):
+    """Add an item to the cart"""
+    if not isinstance(item, dict):
+        raise ValueError("Item must be a dictionary")
+        
+    required_fields = ['name', 'price', 'qty']
+    for field in required_fields:
+        if field not in item:
+            raise ValueError(f"Item missing required field: {field}")
+    
+    # Convert price to float and qty to int
+    try:
+        item['price'] = float(item['price'])
+        item['qty'] = int(item['qty'])
+    except (ValueError, TypeError):
+        raise ValueError("Invalid price or quantity format")
+    
+    if item['qty'] < 1:
+        raise ValueError("Quantity must be positive")
+        
+    # If it's an add-on item, update the add-on total
+    if item.get('is_add_on'):
+        _state['add_on_total_amount'] += item['price'] * item['qty']
+    
+    _state['cart_items'].append(item)
+    _save_state()
 
-    # merge by name+size+price
-    for existing in s.get("cart_items", []):
-        try:
-            if (
-                existing.get("name") == item.get("name") and
-                existing.get("size", "Regular") == item.get("size", "Regular") and
-                float(existing.get("price", 0)) == float(item.get("price", 0))
-            ):
-                existing["qty"] = int(existing.get("qty", 1)) + int(item.get("qty", 1))
-                break
-        except Exception:
-            continue
+def change_item_qty(index, delta):
+    """Change quantity of item at index by delta amount"""
+    if not isinstance(index, int):
+        raise ValueError("Index must be an integer")
+    if index < 0 or index >= len(_state['cart_items']):
+        raise IndexError("Invalid item index")
+        
+    item = _state['cart_items'][index]
+    new_qty = item['qty'] + delta
+    
+    if new_qty < 1:
+        # Remove item if quantity becomes 0
+        _state['cart_items'].pop(index)
+        if item.get('is_add_on'):
+            _state['add_on_total_amount'] -= item['price'] * item['qty']
     else:
-        s.setdefault("cart_items", []).append({
-            "name": item.get("name"),
-            "size": item.get("size", "Regular"),
-            "price": float(item.get("price", 0)),
-            "qty": int(item.get("qty", 1)),
-            "is_add_on": item.get("is_add_on", False)
-        })
-    save_state(s)
-    return s
-
-def change_item_qty(index: int, delta: int):
-    s = load_state()
-    items = s.get("cart_items", [])
-    if 0 <= index < len(items):
-        items[index]["qty"] = max(0, int(items[index].get("qty", 1)) + int(delta))
-        if items[index]["qty"] == 0:
-            del items[index]
-    save_state(s)
-    return s
+        # Update quantity
+        if item.get('is_add_on'):
+            _state['add_on_total_amount'] += item['price'] * delta
+        item['qty'] = new_qty
+        
+    _save_state()
 
 def clear_cart():
-    s = _default_state()
-    save_state(s)
-    return s
+    """Remove all items from cart"""
+    _state['cart_items'].clear()
+    _state['add_on_total_amount'] = 0.0
+    _save_state()
 
 def export_for_checkout():
-    s = load_state()
-    items = list(s.get("cart_items", []))
-    add_on = float(s.get("add_on_total_amount", 0.0))
-    if add_on and add_on > 0:
-        items.append({
-            "name": "Add-On",
-            "size": "-",
-            "price": float(add_on),
-            "qty": 1,
-            "is_add_on": True,
-        })
-    return items
+    """Export cart items in format needed for checkout"""
+    if not _state['cart_items']:
+        return None
+        
+    # Calculate totals
+    subtotal = sum(item['price'] * item['qty'] for item in _state['cart_items'] 
+                  if not item.get('is_add_on'))
+    add_on_total = _state['add_on_total_amount']
+    total = subtotal + add_on_total
+    
+    export_data = {
+        'items': _state['cart_items'],
+        'subtotal': subtotal,
+        'add_on_total': add_on_total,
+        'total': total,
+        'exported_at': datetime.now().isoformat()
+    }
+    
+    return export_data
+
+def _save_state():
+    """Save current state to shared cart file"""
+    try:
+        with open('shared_cart.json', 'w') as f:
+            json.dump(_state, f)
+    except Exception:
+        # Fail silently - state saving is best-effort
+        pass
+
+def _load_state():
+    """Load state from shared cart file if it exists"""
+    try:
+        if os.path.exists('shared_cart.json'):
+            with open('shared_cart.json', 'r') as f:
+                loaded_state = json.load(f)
+                _state.update(loaded_state)
+    except Exception:
+        # Fail silently - state loading is best-effort
+        pass
+
+# Load saved state on module import
+_load_state()

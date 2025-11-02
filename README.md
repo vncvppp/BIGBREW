@@ -60,179 +60,87 @@ python init_database.py
 5. **Configure email settings** (for OTP verification)
 Create a `.env` file in the project root:
 ```env
+# BigBrew — Coffee Shop POS (Tkinter + MySQL)
+
+A lightweight Point of Sale desktop app (Tkinter) used for managing orders, users and OTP-based authentication. This README gives quick setup and run steps for local development on Windows (PowerShell).
+
+## Quick start (Windows PowerShell)
+
+Prerequisites
+- Python 3.8+
+- MySQL Server
+- An SMTP account if you want OTP/email features
+
+Install dependencies
+
+```powershell
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+Database setup
+
+1. Start MySQL server and create a database (example name used below):
+
+```sql
+CREATE DATABASE bigbrewpos;
+```
+
+2. Update `db_config.py` with your DB credentials and database name.
+
+Initialize tables
+
+```powershell
+python init_database.py
+```
+
+Configure email (optional)
+
+Create a `.env` file in the project root (used by the OTP/email utilities):
+
+```ini
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
+SMTP_USER=your-email@example.com
 SMTP_PASS=your-app-password
-SMTP_FROM=your-email@gmail.com
+SMTP_FROM=your-email@example.com
 SMTP_USE_TLS=true
 ```
 
-6. **Run the application**
-```bash
+Run the app
+
+```powershell
 python main.py
 ```
 
-## 🗂️ Project Structure
+## Project layout (top-level files)
 
-```
-BIGBREW-1/
-├── main.py                 # Main application entry point
-├── login.py               # Login interface
-├── signup.py              # User registration with OTP
-├── forgotpass.py          # Password reset request
-├── otp.py                 # OTP verification window
-├── resetpass.py           # Password reset form
-├── admin_dashboard.py    # Admin dashboard
-├── home.py               # Home/dashboard interface
-├── utils.py              # Utility functions and email service
-├── db_config.py          # Database configuration
-├── config.py             # Application configuration
-├── init_database.py      # Database initialization
-├── requirements.txt      # Python dependencies
-├── .gitignore           # Git ignore rules
-├── README.md            # This file
-└── resources/           # UI assets and images
-    ├── login/
-    ├── signup/
-    ├── forgotpass/
-    ├── otp/
-    └── resetpass/
-```
+- `main.py` — application entry
+- `login.py`, `signup.py`, `forgotpass.py`, `resetpass.py`, `otp.py` — auth flows
+- `admin_dashboard.py`, `home.py`, `order.py`, `menu_items.py`, `menu_coffee.py` — UI screens
+- `db_config.py`, `init_database.py`, `init_database_new.py` — DB wiring and init scripts
+- `utils.py`, `config.py` — helpers and configuration
+- `resources/` — images and UI assets
+- `requirements.txt` — Python dependencies
 
-## 🔐 User Roles & Permissions
+Note: There is a nested copy of the project under `New folder/BIGBREW/`. Use the root folder (`C:\Users\Admin\Desktop\BIGBREW`) when running commands.
 
-| Role | Permissions |
-|------|-------------|
-| **Admin** | Full system access, user management, system settings |
-| **Manager** | Staff management, sales reports, inventory overview |
-| **Cashier** | Point of sale, daily sales, customer management |
-| **Barista** | Order queue, recipe book, ingredient inventory |
-| **Inventory Manager** | Inventory management, stock alerts, supplier management |
+## Tips & troubleshooting
 
-## 🛠️ Key Components
+- If you see database connection errors, confirm MySQL is running and credentials in `db_config.py` are correct.
+- If OTP emails don't send, verify `.env` SMTP credentials and allow less-secure or app passwords as needed (provider dependent).
+- For UI issues, ensure the `resources/` subfolders contain the expected image files referenced by the code.
 
-### Authentication Flow
-1. **Login**: Username/email and password authentication
-2. **Signup**: Email registration with OTP verification
-3. **Forgot Password**: Email-based password reset with OTP
-4. **OTP Verification**: 6-digit code verification system
+## Development notes
 
-### Database Schema
-- **customers**: Customer information and authentication
-- **otp_verification**: OTP codes and verification tracking
-- **users**: Staff user accounts (if implemented)
+- The app uses parameterized queries to reduce SQL injection risk and bcrypt for password hashing where implemented.
+- Main UI is built with Tkinter — standard desktop app behavior applies (no web server required).
 
-### Security Features
-- **Password Hashing**: Bcrypt encryption for all passwords
-- **SQL Injection Prevention**: Parameterized queries throughout
-- **OTP Expiration**: Time-limited verification codes
-- **Account Status**: Active/inactive account management
-- **Email Verification**: Required for account activation
+## Contributing
 
-## 🎨 UI Features
-
-### Navigation
-- **Tab Order**: Proper keyboard navigation between form fields
-- **Enter Key**: Quick form submission and field navigation
-- **Back Buttons**: Easy navigation back to previous screens
-- **Focus Management**: Automatic focus on appropriate fields
-
-### Form Validation
-- **Email Validation**: Real-time email format checking
-- **Password Strength**: Minimum requirements with complexity rules
-- **OTP Validation**: 6-digit numeric input with auto-advance
-- **Error Handling**: User-friendly error messages
-
-## 🔧 Configuration
-
-### Database Settings (`db_config.py`)
-```python
-HOST = "localhost"
-PORT = 3306
-DATABASE = "bigbrewpos"
-USER = "root"
-PASSWORD = ""
-```
-
-### Email Settings (`.env` file)
-```env
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-SMTP_PASS=your-app-password
-SMTP_FROM=your-email@gmail.com
-SMTP_USE_TLS=true
-```
-
-## 🧪 Testing
-
-### Manual Testing
-1. **Registration Flow**: Test email signup with OTP verification
-2. **Login Flow**: Test authentication with different user types
-3. **Password Reset**: Test forgot password functionality
-4. **Navigation**: Test all back buttons and form navigation
-5. **Validation**: Test form validation and error handling
-
-### Database Testing
-```bash
-python init_database.py  # Initialize database
-python main.py          # Run application
-```
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-1. **Database Connection Error**
-   - Ensure MySQL server is running
-   - Check database credentials in `db_config.py`
-   - Verify database exists
-
-2. **Email Not Sending**
-   - Check SMTP settings in `.env` file
-   - Verify email credentials
-   - Check firewall/network settings
-
-3. **OTP Not Working**
-   - Check database connection
-   - Verify email configuration
-   - Check OTP expiration (3 minutes)
-
-4. **UI Issues**
-   - Ensure all image files exist in `resources/` folders
-   - Check Python version compatibility
-   - Verify tkinter installation
-
-## 🚀 Future Enhancements
-
-- [ ] **Dashboard Implementation**: Complete role-specific dashboards
-- [ ] **Session Management**: Persistent login sessions
-- [ ] **Audit Logging**: User activity tracking
-- [ ] **Two-Factor Authentication**: Enhanced security
-- [ ] **Remember Me**: Persistent login option
-- [ ] **Multi-language Support**: Internationalization
-- [ ] **Dark Mode**: Theme switching
-- [ ] **Mobile Responsive**: Touch-friendly interface
-- [ ] **Offline Mode**: Local data synchronization
-- [ ] **Reporting System**: Sales and analytics reports
-
-## 📝 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
-
-## 📞 Support
-
-For support and questions, please contact the development team or create an issue in the repository.
+Feel free to open issues or PRs. Prefer small, focused changes (one feature or bugfix per PR).
 
 ---
 
-**BigBrew Coffee Shop POS System** - Brewing great coffee, managing great business! ☕
+Happy brewing ☕
+
