@@ -51,11 +51,30 @@ def run_checkout(cart_items):
     # Order summary text
     order_lines = []
     subtotal = 0
+    
+    # Handle both string and dictionary items
+    def process_item(item):
+        if isinstance(item, str):
+            try:
+                # Try to parse JSON string if needed
+                import json
+                item = json.loads(item)
+            except:
+                # Fallback for plain string
+                return {"qty": 1, "name": item, "size": "Regular", "price": 0}
+        return item if isinstance(item, dict) else {"qty": 1, "name": str(item), "size": "Regular", "price": 0}
+
+    # Process each item
     for item in cart_items:
-        qty = item.get("qty", 1)
-        name = item.get("name", "?")
-        size = item.get("size", "Regular")
-        price = float(item.get("price", 0))
+        item_dict = process_item(item)
+        qty = int(item_dict.get("qty", 1))
+        name = str(item_dict.get("name", "?"))
+        size = str(item_dict.get("size", "Regular"))
+        try:
+            price = float(item_dict.get("price", 0))
+        except (ValueError, TypeError):
+            price = 0.0
+            
         order_lines.append(f"- {name} ({size}) x {qty} ₱{price * qty:,.2f}")
         subtotal += price * qty
     # Text for scrollable list (order lines only)
