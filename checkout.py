@@ -13,7 +13,7 @@ import json
 
 
 OUTPUT_PATH = Path(__file__).parent
-ASSETS_PATH = OUTPUT_PATH / Path(r"C:\Users\Admin\Downloads\Output_design\checkout\build\assets\frame0")
+ASSETS_PATH = OUTPUT_PATH / Path("resources/checkout")
 
 
 def relative_to_assets(path: str) -> Path:

@@ -19,7 +19,7 @@ from shared_state import add_item, change_item_qty, get_state, clear_cart as sha
 
 
 OUTPUT_PATH = Path(__file__).parent
-ASSETS_PATH = OUTPUT_PATH / Path(r"C:\Users\Admin\Downloads\Output_design\coffee\build\assets\frame1")
+ASSETS_PATH = OUTPUT_PATH / Path("resources/menu_coffee")
 
 
 def relative_to_assets(path: str) -> Path:

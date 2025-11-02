@@ -18,7 +18,7 @@ import json
 
 
 OUTPUT_PATH = Path(__file__).parent
-ASSETS_PATH = OUTPUT_PATH / Path(r"C:\Users\Admin\Downloads\Output_design\order history\build\assets\frame0")
+ASSETS_PATH = OUTPUT_PATH / Path("resources/order")
 
 
 def relative_to_assets(path: str) -> Path:
