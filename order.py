@@ -90,8 +90,10 @@ def open_options_popup(product_name=None):
     except Exception as e:
         print(f"Failed to open options popup: {e}")
 
-# -------------------- Cart/Order list state + rendering --------------------
-cart_items = []  # list of dicts: {name, size, price, qty}
+# -------------------- Cart/Order list state + rendering (shared) --------------------
+from shared_state import add_item, change_item_qty, get_state, clear_cart as shared_clear_cart, export_for_checkout
+
+# UI-only canvas ids used to clear/re-render image elements
 cart_item_canvas_ids = []  # to clear and rerender item cards
 
 subtotal_text_id = None
@@ -107,28 +109,25 @@ def abbreviate_text(text, max_chars=24):
         return text
 
 def add_item_to_cart(item):
-    # If same name+size exists, increment qty; else append
-    for existing in cart_items:
-        if existing["name"] == item["name"] and existing["size"] == item["size"] and existing["price"] == item["price"]:
-            existing["qty"] += item.get("qty", 1)
-            break
-    else:
-        cart_items.append({
-            "name": item["name"],
-            "size": item.get("size", "Regular"),
-            "price": float(item["price"]),
-            "qty": int(item.get("qty", 1))
-        })
+    try:
+        add_item(item)
+    except Exception:
+        pass
     render_cart()
 
-def change_item_qty(index, delta):
-    if 0 <= index < len(cart_items):
-        cart_items[index]["qty"] = max(0, cart_items[index]["qty"] + delta)
-        if cart_items[index]["qty"] == 0:
-            del cart_items[index]
-        render_cart()
+def change_item_qty_ui(index, delta):
+    try:
+        change_item_qty(index, delta)
+    except Exception:
+        pass
+    render_cart()
 
 def render_cart():
+    # Always read latest shared state
+    s = get_state()
+    cart_items = s.get("cart_items", [])
+    add_on = float(s.get("add_on_total_amount", 0.0))
+
     # Clear existing item drawings on the cart canvas
     for _id in cart_item_canvas_ids:
         try:
@@ -146,68 +145,70 @@ def render_cart():
 
     # Draw each item card
     for idx, it in enumerate(cart_items):
-        # background card
-        bg = cart_canvas.create_rectangle(
-            left_x, y, right_x, y + card_height, fill="#ECE3D1", outline="", width=0
-        )
-        cart_item_canvas_ids.append(bg)
+        try:
+            # background card
+            bg = cart_canvas.create_rectangle(
+                left_x, y, right_x, y + card_height, fill="#ECE3D1", outline="", width=0
+            )
+            cart_item_canvas_ids.append(bg)
 
-        # Title: Name (Size)
-        full_title = f"{it['name']}  ({it['size']})"
-        title = abbreviate_text(full_title, 24)
-        t1 = cart_canvas.create_text(
-            left_x + 16, y + 12, anchor="nw", text=title, fill="#1E1E1E",
-            font=("Poppins SemiBold", 11 * -1)
-        )
-        cart_item_canvas_ids.append(t1)
+            # Title: Name (Size)
+            full_title = f"{it.get('name')}  ({it.get('size','Regular')})"
+            title = abbreviate_text(full_title, 24)
+            t1 = cart_canvas.create_text(
+                left_x + 16, y + 12, anchor="nw", text=title, fill="#1E1E1E",
+                font=("Poppins SemiBold", 11 * -1)
+            )
+            cart_item_canvas_ids.append(t1)
 
-        # Price on right
-        price_str = f"₱{it['price']:.2f}"
-        tprice = cart_canvas.create_text(
-            right_x - 16, y + 12, anchor="ne", text=price_str, fill="#1E1E1E",
-            font=("Poppins SemiBold", 12 * -1)
-        )
-        cart_item_canvas_ids.append(tprice)
+            # Price on right
+            price_str = f"₱{float(it.get('price',0)):.2f}"
+            tprice = cart_canvas.create_text(
+                right_x - 16, y + 12, anchor="ne", text=price_str, fill="#1E1E1E",
+                font=("Poppins SemiBold", 12 * -1)
+            )
+            cart_item_canvas_ids.append(tprice)
 
-        # Qty line like: "1  x  ₱29.00" in grey
-        qty_line = f"{it['qty']}  x  ₱{it['price']:.2f}"
-        t2 = cart_canvas.create_text(
-            left_x + 16, y + 36, anchor="nw", text=qty_line, fill="#9A9A9B",
-            font=("Poppins Regular", 11 * -1)
-        )
-        cart_item_canvas_ids.append(t2)
+            # Qty line like: "1  x  ₱29.00" in grey
+            qty_line = f"{int(it.get('qty',1))}  x  ₱{float(it.get('price',0)):.2f}"
+            t2 = cart_canvas.create_text(
+                left_x + 16, y + 36, anchor="nw", text=qty_line, fill="#9A9A9B",
+                font=("Poppins Regular", 11 * -1)
+            )
+            cart_item_canvas_ids.append(t2)
 
-        # Minus and plus simple circle buttons
-        # Minus
-        minus_circle = cart_canvas.create_oval(
-            right_x - 64, y + 36, right_x - 40, y + 60, outline="#9A9A9B", width=2
-        )
-        minus_line = cart_canvas.create_line(
-            right_x - 60, y + 48, right_x - 44, y + 48, fill="#9A9A9B", width=2
-        )
-        cart_item_canvas_ids.extend([minus_circle, minus_line])
+            # Minus and plus simple circle buttons
+            minus_circle = cart_canvas.create_oval(
+                right_x - 64, y + 36, right_x - 40, y + 60, outline="#9A9A9B", width=2
+            )
+            minus_line = cart_canvas.create_line(
+                right_x - 60, y + 48, right_x - 44, y + 48, fill="#9A9A9B", width=2
+            )
+            cart_item_canvas_ids.extend([minus_circle, minus_line])
 
-        # Plus
-        plus_circle = cart_canvas.create_oval(
-            right_x - 32, y + 36, right_x - 8, y + 60, outline="#9A9A9B", width=2
-        )
-        plus_h = cart_canvas.create_line(
-            right_x - 28, y + 48, right_x - 12, y + 48, fill="#9A9A9B", width=2
-        )
-        plus_v = cart_canvas.create_line(
-            right_x - 20, y + 40, right_x - 20, y + 56, fill="#9A9A9B", width=2
-        )
-        cart_item_canvas_ids.extend([plus_circle, plus_h, plus_v])
+            plus_circle = cart_canvas.create_oval(
+                right_x - 32, y + 36, right_x - 8, y + 60, outline="#9A9A9B", width=2
+            )
+            plus_h = cart_canvas.create_line(
+                right_x - 28, y + 48, right_x - 12, y + 48, fill="#9A9A9B", width=2
+            )
+            plus_v = cart_canvas.create_line(
+                right_x - 20, y + 40, right_x - 20, y + 56, fill="#9A9A9B", width=2
+            )
+            cart_item_canvas_ids.extend([plus_circle, plus_h, plus_v])
 
-        # Bind clicks to adjust qty
-        def bind_click(tag_id, cb):
-            cart_canvas.tag_bind(tag_id, "<Button-1>", lambda _e: cb())
+            # Bind clicks to adjust qty
+            def bind_click(tag_id, cb):
+                cart_canvas.tag_bind(tag_id, "<Button-1>", lambda _e: cb())
 
-        bind_click(minus_circle, lambda i=idx: change_item_qty(i, -1))
-        bind_click(minus_line,   lambda i=idx: change_item_qty(i, -1))
-        bind_click(plus_circle,  lambda i=idx: change_item_qty(i, +1))
-        bind_click(plus_h,       lambda i=idx: change_item_qty(i, +1))
-        bind_click(plus_v,       lambda i=idx: change_item_qty(i, +1))
+            bind_click(minus_circle, lambda i=idx: change_item_qty_ui(i, -1))
+            bind_click(minus_line,   lambda i=idx: change_item_qty_ui(i, -1))
+            bind_click(plus_circle,  lambda i=idx: change_item_qty_ui(i, +1))
+            bind_click(plus_h,       lambda i=idx: change_item_qty_ui(i, +1))
+            bind_click(plus_v,       lambda i=idx: change_item_qty_ui(i, +1))
+
+        except Exception:
+            pass
 
         y += card_height + v_gap
 
@@ -217,38 +218,42 @@ def render_cart():
     except Exception:
         pass
 
-    # Update totals: split add-ons from base items
-    add_on = sum(it["price"] * it["qty"] for it in cart_items if it.get("is_add_on"))
-    subtotal = sum(it["price"] * it["qty"] for it in cart_items if not it.get("is_add_on"))
-    total = subtotal + add_on
-    if subtotal_text_id is not None:
-        canvas.itemconfigure(subtotal_text_id, text=f"₱{subtotal:.2f}")
-    if add_on_text_id is not None:
-        canvas.itemconfigure(add_on_text_id, text=f"₱{add_on:.2f}")
-    if total_text_id is not None:
-        canvas.itemconfigure(total_text_id, text=f"₱{total:.2f}")
-
-def clear_cart():
+    # Update totals
     try:
-        cart_items.clear()
-        render_cart()
+        subtotal = sum(float(it.get('price',0)) * int(it.get('qty',1)) for it in cart_items if not it.get('is_add_on'))
+        total = subtotal + float(add_on)
+        if subtotal_text_id is not None:
+            canvas.itemconfigure(subtotal_text_id, text=f"₱{subtotal:.2f}")
+        if add_on_text_id is not None:
+            canvas.itemconfigure(add_on_text_id, text=f"₱{add_on:.2f}")
+        if total_text_id is not None:
+            canvas.itemconfigure(total_text_id, text=f"₱{total:.2f}")
     except Exception:
         pass
 
+def clear_cart():
+    try:
+        shared_clear_cart()
+    except Exception:
+        pass
+    render_cart()
+
 def open_checkout_subprocess():
-    if not cart_items:
-        try:
-            messagebox.showinfo("Checkout", "Your cart is empty.")
-        except Exception:
-            pass
-        return
-    # Write cart_items to a temp file
-    with tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".json") as tf:
-        json.dump(cart_items, tf)
-        temp_path = tf.name
-    # Call checkout.py and pass the temp file path
-    script_path = os.path.join(os.path.dirname(__file__), "checkout.py")
-    subprocess.Popen([sys.executable, script_path, temp_path])
+    try:
+        items = export_for_checkout()
+        if not items:
+            try:
+                messagebox.showinfo("Checkout", "Your cart is empty.")
+            except Exception:
+                pass
+            return
+        with tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".json") as tf:
+            json.dump(items, tf)
+            temp_path = tf.name
+        script_path = os.path.join(os.path.dirname(__file__), "checkout.py")
+        subprocess.Popen([sys.executable, script_path, temp_path])
+    except Exception:
+        pass
     try:
         window.destroy()
     except Exception:
@@ -885,6 +890,11 @@ canvas.create_rectangle(
     196.0,
     fill="#000000",
     outline="")
+try:
+    render_cart()
+except Exception:
+    pass
+
 window.resizable(False, False)
 window.mainloop()
 

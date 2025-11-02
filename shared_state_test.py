@@ -1,0 +1,10 @@
+import shared_state, json
+print('Before:', json.dumps(shared_state.get_state(), indent=2))
+shared_state.add_item({'name':'Okinawa Milk Tea','size':'Regular','price':29,'qty':1})
+print('After add:', json.dumps(shared_state.get_state(), indent=2))
+shared_state.add_item({'name':'Brusko Coffee','size':'Regular','price':29,'qty':1})
+print('After add 2:', json.dumps(shared_state.get_state(), indent=2))
+shared_state.change_item_qty(0, 1)
+print('After incr qty:', json.dumps(shared_state.get_state(), indent=2))
+shared_state.clear_cart()
+print('After clear:', json.dumps(shared_state.get_state(), indent=2))

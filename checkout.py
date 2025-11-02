@@ -128,6 +128,13 @@ def run_checkout(cart_items):
         # Show confirmation
         mbox.showinfo("Checkout", f"Order confirmed! Payment: {pay_method.get()}")
 
+        # Clear shared cart state after successful checkout
+        try:
+            from shared_state import clear_cart
+            clear_cart()
+        except Exception:
+            pass
+
         # Close checkout window
         window.destroy()
 

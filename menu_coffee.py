@@ -15,6 +15,7 @@ import os
 import sys
 import subprocess
 import json
+from shared_state import add_item, change_item_qty, get_state, clear_cart as shared_clear_cart, export_for_checkout
 
 
 OUTPUT_PATH = Path(__file__).parent
@@ -342,10 +343,9 @@ def _unbind_cart_wheel(_event=None):
 cart_canvas.bind("<Enter>", _bind_cart_wheel)
 cart_canvas.bind("<Leave>", _unbind_cart_wheel)
 
-# -------------- Cart state, add, and render, matching order.py -------------------
-cart_items = []  # Each: {name, size, price, qty}
+# -------------- Cart state, add, and render (shared) -------------------
+# Use file-backed shared_state so cart persists across separate windows/processes
 cart_item_canvas_ids = []
-add_on_total_amount = 0.0
 _add_on_amount_text_id = None
 _subtotal_amount_text_id = None
 _total_amount_text_id = None
@@ -359,42 +359,24 @@ def abbreviate_text(text, max_chars=24):
         return text
 
 def add_item_to_cart(item):
-    global add_on_total_amount
-    # Treat add-ons as amount-only; don't add a cart line
-    if item.get('is_add_on'):
-        try:
-            add_on_total_amount += float(item.get('price', 0)) * int(item.get('qty', 1))
-        except Exception:
-            pass
-        render_cart()
-        return
-    # If same name+size+price exists, increment qty; else append
-    for it in cart_items:
-        if (
-            it['name'] == item['name'] and 
-            it.get('size','Regular') == item.get('size','Regular') and 
-            float(it.get('price',0)) == float(item.get('price',0))
-        ):
-            it['qty'] += item.get('qty', 1)
-            break
-    else:
-        cart_items.append({
-            'name': item['name'],
-            'size': item.get('size','Regular'),
-            'price': float(item['price']),
-            'qty': int(item.get('qty',1)),
-            'is_add_on': item.get('is_add_on', False)
-        })
+    try:
+        add_item(item)
+    except Exception:
+        pass
     render_cart()
 
-def change_item_qty(idx, delta):
-    if 0 <= idx < len(cart_items):
-        cart_items[idx]['qty'] = max(0, cart_items[idx]['qty'] + delta)
-        if cart_items[idx]['qty'] == 0:
-            del cart_items[idx]
-        render_cart()
+def change_item_qty_ui(idx, delta):
+    try:
+        change_item_qty(idx, delta)
+    except Exception:
+        pass
+    render_cart()
 
 def render_cart():
+    s = get_state()
+    cart_items = s.get('cart_items', [])
+    add_on_total_amount = float(s.get('add_on_total_amount', 0.0))
+
     # Clear only the cart items canvas, not the main canvas
     for cid in cart_item_canvas_ids:
         try:
@@ -413,7 +395,7 @@ def render_cart():
         )
         cart_item_canvas_ids.append(bg)
         # Name (Size)
-        full_title = f"{it['name']}  ({it.get('size','Regular')})"
+        full_title = f"{it.get('name')}  ({it.get('size','Regular')})"
         title = abbreviate_text(full_title, 24)
         t1 = cart_canvas.create_text(
             left_x + 16,
@@ -425,7 +407,7 @@ def render_cart():
         )
         cart_item_canvas_ids.append(t1)
         # Price right
-        price_str = f"₱{it['price']:.2f}"
+        price_str = f"₱{float(it.get('price',0)):.2f}"
         tprice = cart_canvas.create_text(
             right_x - 16,
             y + 12,
@@ -436,7 +418,7 @@ def render_cart():
         )
         cart_item_canvas_ids.append(tprice)
         # Qty line
-        qty_line = f"{it['qty']}  x  ₱{it['price']:.2f}"
+        qty_line = f"{int(it.get('qty',1))}  x  ₱{float(it.get('price',0)):.2f}"
         t2 = cart_canvas.create_text(
             left_x + 16,
             y + 36,
@@ -468,11 +450,11 @@ def render_cart():
         # Bind add/subtract
         def bind_click(tag_id, cb):
             cart_canvas.tag_bind(tag_id, "<Button-1>", lambda _e: cb())
-        bind_click(minus_circ, lambda i=idx: change_item_qty(i, -1))
-        bind_click(minus_line, lambda i=idx: change_item_qty(i, -1))
-        bind_click(plus_circ, lambda i=idx: change_item_qty(i, +1))
-        bind_click(plus_h, lambda i=idx: change_item_qty(i, +1))
-        bind_click(plus_v, lambda i=idx: change_item_qty(i, +1))
+        bind_click(minus_circ, lambda i=idx: change_item_qty_ui(i, -1))
+        bind_click(minus_line, lambda i=idx: change_item_qty_ui(i, -1))
+        bind_click(plus_circ, lambda i=idx: change_item_qty_ui(i, +1))
+        bind_click(plus_h, lambda i=idx: change_item_qty_ui(i, +1))
+        bind_click(plus_v, lambda i=idx: change_item_qty_ui(i, +1))
         y += card_height + v_gap
     # Update scrollable area
     try:
@@ -483,6 +465,9 @@ def render_cart():
 
 def update_totals():
     try:
+        s = get_state()
+        cart_items = s.get('cart_items', [])
+        add_on_total_amount = float(s.get('add_on_total_amount', 0.0))
         subtotal = 0.0
         for it in cart_items:
             if not it.get('is_add_on'):
@@ -498,41 +483,28 @@ def update_totals():
         pass
 
 def clear_cart():
-    global add_on_total_amount
     try:
-        cart_items.clear()
-        add_on_total_amount = 0.0
-        render_cart()
+        shared_clear_cart()
     except Exception:
         pass
+    render_cart()
 
 def checkout_cart():
-    if not cart_items:
-        try:
-            messagebox.showinfo("Checkout", "Your cart is empty.")
-        except Exception:
-            pass
-        return
-    # Write cart_items to a temp file
-    with tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".json") as tf:
-        try:
-            export_items = list(cart_items)
-            # Add a single consolidated Add-On line for checkout to match totals
-            if add_on_total_amount and add_on_total_amount > 0:
-                export_items.append({
-                    'name': 'Add-On',
-                    'size': '-',
-                    'price': float(add_on_total_amount),
-                    'qty': 1,
-                    'is_add_on': True
-                })
-            json.dump(export_items, tf)
-        except Exception:
-            # Fallback to original behavior
-            json.dump(cart_items, tf)
-        temp_path = tf.name
-    script_path = os.path.join(os.path.dirname(__file__), "checkout.py")
-    subprocess.Popen([sys.executable, script_path, temp_path])
+    try:
+        items = export_for_checkout()
+        if not items:
+            try:
+                messagebox.showinfo("Checkout", "Your cart is empty.")
+            except Exception:
+                pass
+            return
+        with tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".json") as tf:
+            json.dump(items, tf)
+            temp_path = tf.name
+        script_path = os.path.join(os.path.dirname(__file__), "checkout.py")
+        subprocess.Popen([sys.executable, script_path, temp_path])
+    except Exception:
+        pass
     try:
         window.destroy()
     except Exception:
@@ -790,5 +762,10 @@ canvas.create_rectangle(
     196.0,
     fill="#000000",
     outline="")
+try:
+    render_cart()
+except Exception:
+    pass
+
 window.resizable(False, False)
 window.mainloop()
