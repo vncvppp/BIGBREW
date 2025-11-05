@@ -72,23 +72,18 @@ class OTPVerificationWindow:
             fill="#3A280F", outline=""
         )
         
-        # Title text (centered inside the title rectangle)
+        # Title text
         title_text = "Email Verification" if self.purpose == 'signup' else "Password Reset Verification"
-        # Title rectangle coordinates: (91.0, 84.0) to (254.0, 132.0)
-        title_center_x = (91.0 + 254.0) / 2
-        title_center_y = (84.0 + 132.0) / 2
         self.canvas.create_text(
-            title_center_x, title_center_y, anchor="center",
+            46.0, 85.0, anchor="nw",
             text=title_text,
             fill="#FFFFFF", font=("Inter Bold", 32 * -1)
         )
-
-        # Instruction text (centered under/around the title area)
+        
+        # Title text
         instruction_text = "Enter the 6-digit verification code sent to your email:" if self.purpose == 'signup' else "Enter the 6-digit verification code sent to your email for password reset:"
-        instr_x = title_center_x
-        instr_y = 140.0
         self.canvas.create_text(
-            instr_x, instr_y, anchor="center",
+            91.0, 140.0, anchor="nw",
             text=instruction_text,
             fill="#FFFFFF", font=("Inter Bold", 13 * -1)
         )
@@ -112,26 +107,14 @@ class OTPVerificationWindow:
         self.widgets.append(self.button_verify)
 
         # Resend OTP button
-        # Resend OTP text button (acts like a link). Enabled; cooldown handled after resend.
-        # We'll display a simple text button and manage a 60s cooldown to prevent spamming.
-        self.resend_cooldown_end = 0
-        self._resend_timer_id = None
-
-        # Style to match the dark brown theme used elsewhere (#3A280F)
+        self.button_image_2 = PhotoImage(file=relative_to_assets("button_resend.png"))
         self.buttonLbl_resendotp = Button(
-            text="Didn't receive the OTP? Resend OTP",
+            image=self.button_image_2,
             borderwidth=0,
             highlightthickness=0,
-            command=lambda: self.on_resend_click(),
+            command=self.resend_otp,
             relief="flat",
-            fg="#FFFFFF",
-            bg="#3A280F",
-            activebackground="#3A280F",
-            activeforeground="#FFFFFF",
-            disabledforeground="#BEBEBE",
-            cursor="hand2",
-            font=("Inter", 9, "underline"),
-            state='normal'  # Start enabled so user can resend if needed
+            state='disabled'  # Initially disabled
         )
         self.buttonLbl_resendotp.place(x=66.0, y=376.0, width=224.0, height=26.0)
         self.widgets.append(self.buttonLbl_resendotp)
@@ -213,52 +196,6 @@ class OTPVerificationWindow:
             entry.bind('<Return>', lambda e: self.verify_otp())
         
         self.button_verify.bind('<Return>', lambda e: self.verify_otp())
-
-    def on_resend_click(self):
-        """Handle click on the resend text button with a cooldown."""
-        # If we're still in cooldown, notify user
-        now = time.time()
-        if getattr(self, 'resend_cooldown_end', 0) > now:
-            remaining = int(self.resend_cooldown_end - now)
-            messagebox.showinfo("Please wait", f"Please wait {remaining}s before resending.")
-            return
-
-        # Otherwise call resend_otp() which also updates DB and sends email
-        self.resend_otp()
-
-        # Start a 60s cooldown to prevent spamming
-        self.resend_cooldown_end = time.time() + 60
-        try:
-            self.buttonLbl_resendotp.config(state='disabled')
-        except Exception:
-            pass
-        # Kick off the cooldown UI updater
-        self.update_resend_button_timer()
-
-    def update_resend_button_timer(self):
-        """Update the resend button text to show remaining cooldown seconds and re-enable when done."""
-        # Cancel previous resend timer if any
-        if getattr(self, '_resend_timer_id', None):
-            try:
-                self.parent.after_cancel(self._resend_timer_id)
-            except Exception:
-                pass
-
-        now = time.time()
-        remaining = int(getattr(self, 'resend_cooldown_end', 0) - now)
-        if remaining > 0:
-            try:
-                self.buttonLbl_resendotp.config(text=f"Resend available in {remaining}s")
-            except Exception:
-                pass
-            # Schedule next update
-            self._resend_timer_id = self.parent.after(1000, self.update_resend_button_timer)
-        else:
-            # Cooldown finished; restore original label and enable
-            try:
-                self.buttonLbl_resendotp.config(text="Didn't receive the OTP? Resend OTP", state='normal')
-            except Exception:
-                pass
 
     def focus_next_otp(self, event, current_index):
         """Focus on next OTP field when Tab is pressed"""
@@ -485,16 +422,9 @@ class OTPVerificationWindow:
             messagebox.showinfo("Success", "New OTP sent to your email!")
             if self.otp_entries:
                 self.otp_entries[0].focus()
-            # Reset timer and disable resend button, start cooldown
-            try:
-                self.buttonLbl_resendotp.config(state='disabled')
-            except Exception:
-                pass
-            # Set a cooldown so the user can't spam resends; 60 seconds
-            self.resend_cooldown_end = time.time() + 60
-            self.update_resend_button_timer()
-            # Also restart OTP expiry timer (3 minutes)
-            self.otp_expiry_time = time.time() + 180
+            
+            # Reset timer and disable resend button
+            self.buttonLbl_resendotp.config(state='disabled')
             self.start_otp_timer()
         else:
             messagebox.showerror("Error", "Failed to send OTP. Please try again.")
@@ -548,9 +478,3 @@ class OTPVerificationWindow:
                     widget.destroy()
             except:
                 pass  # Widget might already be destroyed
-        # Cancel resend timer if running
-        if getattr(self, '_resend_timer_id', None):
-            try:
-                self.parent.after_cancel(self._resend_timer_id)
-            except Exception:
-                pass

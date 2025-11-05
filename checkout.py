@@ -144,28 +144,42 @@ def run_checkout(cart_items):
         if not pay_method.get():
             mbox.showinfo("Select Payment", "Please select a payment method.")
             return
-        # Show confirmation
-        mbox.showinfo("Checkout", f"Order confirmed! Payment: {pay_method.get()}")
-
-        # Clear shared cart state after successful checkout
+            
         try:
-            from shared_state import clear_cart
-            clear_cart()
-        except Exception:
-            pass
-
-        # Close checkout window
-        window.destroy()
-
-        # Reopen the customer home screen
-        try:
-            import subprocess, os, sys
-            home_script = os.path.join(OUTPUT_PATH, "home.py")
-            if os.path.exists(home_script):
-                subprocess.Popen([sys.executable, home_script], cwd=str(OUTPUT_PATH))
-        except Exception:
-            # Silently ignore if home cannot be opened; order is already confirmed
-            pass
+            from shared_state import save_purchase_to_db, clear_cart
+            
+            # Calculate total amount
+            total = sum(float(item.get('price', 0)) * int(item.get('qty', 1)) 
+                       for item in cart_items if isinstance(item, dict))
+                       
+            # Save to database
+            sale_id = save_purchase_to_db(
+                customer_id=None,  # Walk-in customer
+                total_amount=total,
+                payment_method=pay_method.get().lower().split()[0],  # Just first word lowercase
+                items=cart_items
+            )
+            
+            if sale_id:
+                mbox.showinfo("Checkout", 
+                    f"Order #{sale_id} confirmed!\nPayment: {pay_method.get()}\nTotal: ₱{total:,.2f}")
+                # Clear cart on success
+                clear_cart()
+                # Close checkout window
+                window.destroy()
+                # Reopen home screen
+                try:
+                    import subprocess, os, sys
+                    home_script = os.path.join(OUTPUT_PATH, "home.py")
+                    if os.path.exists(home_script):
+                        subprocess.Popen([sys.executable, home_script], cwd=str(OUTPUT_PATH))
+                except Exception:
+                    pass
+            else:
+                mbox.showerror("Error", "Failed to save order. Please try again.")
+        except Exception as e:
+            mbox.showerror("Error", f"Checkout failed: {str(e)}")
+            print(f"Checkout error: {e}")
     button_2 = Button(
         image=button_image_2, borderwidth=0,
         highlightthickness=0, command=confirm_action, relief="flat"
