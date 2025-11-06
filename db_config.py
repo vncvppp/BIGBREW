@@ -128,3 +128,7 @@ class DatabaseConfig:
 
 # Global database instance
 db = DatabaseConfig()
+
+def get_db_connection():
+    """Get database connection using global db instance"""
+    return db.get_connection()

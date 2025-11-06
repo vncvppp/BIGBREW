@@ -1,6 +1,9 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from datetime import datetime
+from repositories.product_repository import ProductRepository
+from db_config import get_db_connection
+import mysql.connector
 
 class DashboardFactory:
     def __init__(self, user_data, main_app):
@@ -196,7 +199,7 @@ class BaseDashboard:
 
 class AdminDashboard(BaseDashboard):
     def create_main_content(self):
-        """Create admin-specific content"""
+        """Create admin-specific content with CRUD operations"""
         content_frame = tk.Frame(self.window, bg=self.bg_color)
         content_frame.pack(fill='both', expand=True, padx=20, pady=10)
         
@@ -204,76 +207,57 @@ class AdminDashboard(BaseDashboard):
         controls_frame = tk.Frame(content_frame, bg=self.bg_color)
         controls_frame.pack(fill='both', expand=True)
         
-        # User Management
-        user_card = self.create_card(controls_frame, "User Access Management", 0, 0)
-        user_btn = tk.Button(
-            user_card,
-            text="Manage User Access",
+        # Product Management (CRUD)
+        product_card = self.create_card(controls_frame, "Product Management", 0, 0)
+        product_btn = tk.Button(
+            product_card,
+            text="Manage Products",
             font=("Arial", 12),
             bg=self.button_color,
             fg=self.text_color,
             relief='flat',
             bd=0,
-            command=self.manage_users,
+            command=self.manage_products,
             height=2
         )
-        user_btn.pack(expand=True, fill='both', padx=10, pady=10)
+        product_btn.pack(expand=True, fill='both', padx=10, pady=10)
         
-        # Add access summary
-        access_summary = tk.Label(
-            user_card,
-            text="View and manage user permissions\nand access controls",
+        # Add product summary
+        product_summary = tk.Label(
+            product_card,
+            text="Add, Edit, Delete\nmilk tea flavors & menu items",
             font=("Arial", 9),
             bg=self.card_bg,
             fg="#666666",
             justify='center'
         )
-        access_summary.pack(pady=(0, 10))
+        product_summary.pack(pady=(0, 10))
         
-        # System Settings
-        settings_card = self.create_card(controls_frame, "System Settings", 0, 1)
-        settings_btn = tk.Button(
-            settings_card,
-            text="System Settings",
+        # Inventory Management
+        inventory_card = self.create_card(controls_frame, "Inventory Management", 0, 1)
+        inventory_btn = tk.Button(
+            inventory_card,
+            text="Manage Inventory",
             font=("Arial", 12),
             bg=self.button_color,
             fg=self.text_color,
             relief='flat',
             bd=0,
-            command=self.system_settings,
+            command=self.manage_inventory,
             height=2
         )
-        settings_btn.pack(expand=True, fill='both', padx=10, pady=10)
+        inventory_btn.pack(expand=True, fill='both', padx=10, pady=10)
         
-        # Reports
-        reports_card = self.create_card(controls_frame, "Reports & Analytics", 1, 0)
-        reports_btn = tk.Button(
-            reports_card,
-            text="View Reports",
-            font=("Arial", 12),
-            bg=self.button_color,
-            fg=self.text_color,
-            relief='flat',
-            bd=0,
-            command=self.view_reports,
-            height=2
+        # Add inventory summary
+        inventory_summary = tk.Label(
+            inventory_card,
+            text="Track and update\nremaining stock levels",
+            font=("Arial", 9),
+            bg=self.card_bg,
+            fg="#666666",
+            justify='center'
         )
-        reports_btn.pack(expand=True, fill='both', padx=10, pady=10)
-        
-        # Database Management
-        db_card = self.create_card(controls_frame, "Database Management", 1, 1)
-        db_btn = tk.Button(
-            db_card,
-            text="Database Tools",
-            font=("Arial", 12),
-            bg=self.button_color,
-            fg=self.text_color,
-            relief='flat',
-            bd=0,
-            command=self.database_tools,
-            height=2
-        )
-        db_btn.pack(expand=True, fill='both', padx=10, pady=10)
+        inventory_summary.pack(pady=(0, 10))
         
     def create_card(self, parent, title, row, col):
         """Create a dashboard card"""
@@ -292,345 +276,1097 @@ class AdminDashboard(BaseDashboard):
         title_label.pack(pady=(10, 5))
         
         return card
-        
-    def manage_users(self):
-        """Open user management window with access controls"""
-        self.user_management_window = tk.Toplevel(self.window)
-        self.user_management_window.title("User Access Management")
-        self.user_management_window.geometry("1200x800")
-        self.user_management_window.configure(bg=self.bg_color)
+    
+    def _get_product_id_column(self):
+        """Detect the primary key column name for products table"""
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("DESCRIBE products")
+            columns = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            
+            # Check for 'id' or 'product_id' column
+            column_names = [col[0] for col in columns]
+            if 'id' in column_names:
+                return 'id'
+            elif 'product_id' in column_names:
+                return 'product_id'
+            else:
+                # Default to 'id' if we can't determine
+                return 'id'
+        except Exception:
+            # Fallback to 'id' if we can't check
+            return 'id'
+    
+    def _get_table_columns(self, table_name):
+        """Return list of column names for a table, or empty list on failure"""
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(f"DESCRIBE {table_name}")
+            cols = [row[0] for row in cursor.fetchall()]
+            cursor.close()
+            conn.close()
+            return cols
+        except Exception:
+            return []
+    
+    def _get_schema(self):
+        """Detect commonly varying column names across products/categories/inventory"""
+        prod_cols = self._get_table_columns('products')
+        cat_cols = self._get_table_columns('categories')
+        inv_cols = self._get_table_columns('inventory')
+
+        # products
+        prod_id = 'id' if 'id' in prod_cols else ('product_id' if 'product_id' in prod_cols else self._get_product_id_column())
+        prod_name = 'name' if 'name' in prod_cols else ('product_name' if 'product_name' in prod_cols else 'name')
+        prod_price = 'price' if 'price' in prod_cols else ('unit_price' if 'unit_price' in prod_cols else 'price')
+        prod_desc = 'description' if 'description' in prod_cols else None
+        prod_image = 'image_path' if 'image_path' in prod_cols else None
+        prod_cat_fk = 'category_id' if 'category_id' in prod_cols else next((c for c in prod_cols if 'category' in c and 'id' in c), 'category_id')
+
+        # categories
+        cat_id = 'id' if 'id' in cat_cols else ('category_id' if 'category_id' in cat_cols else 'id')
+        cat_name = 'name' if 'name' in cat_cols else ('category_name' if 'category_name' in cat_cols else 'name')
+
+        # inventory
+        inv_qty = 'quantity' if 'quantity' in inv_cols else ('current_stock' if 'current_stock' in inv_cols else 'quantity')
+        inv_prod_fk = 'product_id' if 'product_id' in inv_cols else 'product_id'
+
+        return {
+            'prod_id': prod_id,
+            'prod_name': prod_name,
+            'prod_price': prod_price,
+            'prod_desc': prod_desc,
+            'prod_image': prod_image,
+            'prod_cat_fk': prod_cat_fk,
+            'cat_id': cat_id,
+            'cat_name': cat_name,
+            'inv_qty': inv_qty,
+            'inv_prod_fk': inv_prod_fk,
+        }
+    
+    def get_categories(self):
+        """Get all categories from database"""
+        try:
+            schema = self._get_schema()
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                f"SELECT {schema['cat_id']} as id, {schema['cat_name']} as name FROM categories ORDER BY {schema['cat_name']}"
+            )
+            categories = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            return categories
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load categories: {e}")
+            return []
+    
+    def manage_products(self):
+        """Open product management window with CRUD operations"""
+        self.product_window = tk.Toplevel(self.window)
+        self.product_window.title("Product Management - CRUD Operations")
+        self.product_window.geometry("1400x800")
+        self.product_window.configure(bg=self.bg_color)
         
         # Center the window
-        self.user_management_window.update_idletasks()
-        width, height = 1200, 800
-        screen_width = self.user_management_window.winfo_screenwidth()
-        screen_height = self.user_management_window.winfo_screenheight()
+        self.product_window.update_idletasks()
+        width, height = 1400, 800
+        screen_width = self.product_window.winfo_screenwidth()
+        screen_height = self.product_window.winfo_screenheight()
         x = (screen_width - width) // 2
         y = (screen_height - height) // 2
-        self.user_management_window.geometry(f"{width}x{height}+{x}+{y}")
+        self.product_window.geometry(f"{width}x{height}+{x}+{y}")
         
         # Header
-        header_frame = tk.Frame(self.user_management_window, bg=self.bg_color, height=60)
+        header_frame = tk.Frame(self.product_window, bg=self.bg_color, height=60)
         header_frame.pack(fill='x', padx=20, pady=10)
         header_frame.pack_propagate(False)
         
         title_label = tk.Label(
             header_frame,
-            text="User Access Management",
+            text="Product Management - Add, Edit, Delete Products",
             font=("Arial", 18, "bold"),
             bg=self.bg_color,
             fg=self.accent_color
         )
         title_label.pack(side='left')
         
+        add_btn = tk.Button(
+            header_frame,
+            text="➕ Add New Product",
+            font=("Arial", 12, "bold"),
+            bg="#28A745",
+            fg="white",
+            relief='flat',
+            bd=0,
+            command=self.add_product_window,
+            padx=20,
+            pady=5
+        )
+        add_btn.pack(side='right', padx=(10, 0))
+        
         # Main content area
-        main_frame = tk.Frame(self.user_management_window, bg=self.bg_color)
+        main_frame = tk.Frame(self.product_window, bg=self.bg_color)
         main_frame.pack(fill='both', expand=True, padx=20, pady=10)
         
-        # Left panel - User list
-        left_frame = tk.Frame(main_frame, bg=self.card_bg, relief='raised', bd=2)
-        left_frame.pack(side='left', fill='both', expand=True, padx=(0, 10))
+        # Products list with Treeview
+        list_frame = tk.Frame(main_frame, bg=self.card_bg, relief='raised', bd=2)
+        list_frame.pack(fill='both', expand=True)
         
         tk.Label(
-            left_frame,
-            text="Users",
-            font=("Arial", 14, "bold"),
-            bg=self.card_bg,
-            fg="#4A3728"
-        ).pack(pady=10)
-        
-        # User listbox with scrollbar
-        list_frame = tk.Frame(left_frame, bg=self.card_bg)
-        list_frame.pack(fill='both', expand=True, padx=10, pady=10)
-        
-        self.user_listbox = tk.Listbox(
             list_frame,
-            font=("Arial", 11),
-            bg="white",
-            fg="#4A3728",
-            selectbackground=self.button_color,
-            selectforeground="white"
-        )
-        scrollbar = tk.Scrollbar(list_frame, orient="vertical", command=self.user_listbox.yview)
-        self.user_listbox.configure(yscrollcommand=scrollbar.set)
-        
-        self.user_listbox.pack(side='left', fill='both', expand=True)
-        scrollbar.pack(side='right', fill='y')
-        
-        # Populate user list (mock data for demonstration)
-        self.populate_user_list()
-        
-        # Right panel - User details and permissions
-        right_frame = tk.Frame(main_frame, bg=self.card_bg, relief='raised', bd=2)
-        right_frame.pack(side='right', fill='both', expand=True)
-        
-        tk.Label(
-            right_frame,
-            text="User Access Details",
+            text="Products List",
             font=("Arial", 14, "bold"),
             bg=self.card_bg,
             fg="#4A3728"
         ).pack(pady=10)
         
-        # User details frame
-        details_frame = tk.Frame(right_frame, bg=self.card_bg)
-        details_frame.pack(fill='both', expand=True, padx=10, pady=10)
+        # Treeview with scrollbars
+        tree_frame = tk.Frame(list_frame, bg=self.card_bg)
+        tree_frame.pack(fill='both', expand=True, padx=10, pady=10)
         
-        # User info
-        self.user_info_frame = tk.Frame(details_frame, bg=self.card_bg)
-        self.user_info_frame.pack(fill='x', pady=(0, 10))
+        scrollbar_y = tk.Scrollbar(tree_frame, orient='vertical')
+        scrollbar_x = tk.Scrollbar(tree_frame, orient='horizontal')
         
-        # Permissions frame
-        permissions_frame = tk.LabelFrame(
-            details_frame,
-            text="Permissions",
-            font=("Arial", 12, "bold"),
-            bg=self.card_bg,
-            fg="#4A3728"
+        self.products_tree = ttk.Treeview(
+            tree_frame,
+            columns=("ID", "Name", "Category", "Price", "Stock", "Description"),
+            show='headings',
+            yscrollcommand=scrollbar_y.set,
+            xscrollcommand=scrollbar_x.set,
+            height=20
         )
-        permissions_frame.pack(fill='both', expand=True)
         
-        # Permission checkboxes
-        self.permission_vars = {}
-        permissions = [
-            ("User Management", "user_mgmt"),
-            ("System Settings", "system_settings"),
-            ("Reports Access", "reports"),
-            ("Database Tools", "database"),
-            ("Staff Management", "staff_mgmt"),
-            ("Sales Reports", "sales_reports"),
-            ("Inventory Management", "inventory"),
-            ("Schedule Management", "schedule"),
-            ("Point of Sale", "pos"),
-            ("Customer Management", "customer_mgmt"),
-            ("Order Management", "order_mgmt"),
-            ("Recipe Access", "recipe_access"),
-            ("Time Tracking", "time_tracking"),
-            ("Supplier Management", "supplier_mgmt"),
-            ("Purchase Orders", "purchase_orders")
-        ]
+        scrollbar_y.config(command=self.products_tree.yview)
+        scrollbar_x.config(command=self.products_tree.xview)
         
-        for i, (permission_name, permission_key) in enumerate(permissions):
-            var = tk.BooleanVar()
-            self.permission_vars[permission_key] = var
-            
-            cb = tk.Checkbutton(
-                permissions_frame,
-                text=permission_name,
-                variable=var,
-                font=("Arial", 10),
-                bg=self.card_bg,
-                fg="#4A3728",
-                activebackground=self.card_bg,
-                command=self.update_permissions
-            )
-            cb.grid(row=i//2, column=i%2, sticky='w', padx=10, pady=2)
+        # Configure columns
+        self.products_tree.heading("ID", text="ID")
+        self.products_tree.heading("Name", text="Product Name")
+        self.products_tree.heading("Category", text="Category")
+        self.products_tree.heading("Price", text="Price (₱)")
+        self.products_tree.heading("Stock", text="Stock")
+        self.products_tree.heading("Description", text="Description")
+        
+        self.products_tree.column("ID", width=50, anchor='center')
+        self.products_tree.column("Name", width=200, anchor='w')
+        self.products_tree.column("Category", width=150, anchor='w')
+        self.products_tree.column("Price", width=100, anchor='center')
+        self.products_tree.column("Stock", width=100, anchor='center')
+        self.products_tree.column("Description", width=300, anchor='w')
+        
+        self.products_tree.pack(side='left', fill='both', expand=True)
+        scrollbar_y.pack(side='right', fill='y')
+        scrollbar_x.pack(side='bottom', fill='x')
         
         # Action buttons
-        button_frame = tk.Frame(details_frame, bg=self.card_bg)
+        button_frame = tk.Frame(list_frame, bg=self.card_bg)
         button_frame.pack(fill='x', pady=10)
         
-        save_btn = tk.Button(
+        edit_btn = tk.Button(
             button_frame,
-            text="Save Changes",
-            font=("Arial", 12),
+            text="✏️ Edit Product",
+            font=("Arial", 11),
             bg=self.button_color,
             fg=self.text_color,
             relief='flat',
             bd=0,
-            command=self.save_user_changes,
-            width=15
+            command=self.edit_product_window,
+            width=15,
+            padx=10
         )
-        save_btn.pack(side='left', padx=(0, 10))
+        edit_btn.pack(side='left', padx=5)
         
-        reset_btn = tk.Button(
+        delete_btn = tk.Button(
             button_frame,
-            text="Reset",
+            text="❌ Delete Product",
+            font=("Arial", 11),
+            bg="#DC3545",
+            fg="white",
+            relief='flat',
+            bd=0,
+            command=self.delete_product,
+            width=15,
+            padx=10
+        )
+        delete_btn.pack(side='left', padx=5)
+        
+        refresh_btn = tk.Button(
+            button_frame,
+            text="🔄 Refresh",
+            font=("Arial", 11),
+            bg="#6C757D",
+            fg="white",
+            relief='flat',
+            bd=0,
+            command=self.refresh_products_list,
+            width=15,
+            padx=10
+        )
+        refresh_btn.pack(side='left', padx=5)
+        
+        # Load products
+        self.refresh_products_list()
+    
+    def refresh_products_list(self):
+        """Refresh the products list"""
+        # Clear existing items
+        for item in self.products_tree.get_children():
+            self.products_tree.delete(item)
+        
+        try:
+            schema = self._get_schema()
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            # Get products with inventory
+            select_desc = f", p.{schema['prod_desc']} as description" if schema['prod_desc'] else ""
+            select_image = f", p.{schema['prod_image']} as image_path" if schema['prod_image'] else ""
+            query = f"""
+                SELECT p.{schema['prod_id']} as id,
+                       p.{schema['prod_name']} as name
+                       {select_desc},
+                       p.{schema['prod_price']} as price
+                       {select_image},
+                       c.{schema['cat_name']} as category_name,
+                       COALESCE(i.{schema['inv_qty']}, 0) as stock
+                FROM products p
+                LEFT JOIN categories c ON p.{schema['prod_cat_fk']} = c.{schema['cat_id']}
+                LEFT JOIN inventory i ON p.{schema['prod_id']} = i.{schema['inv_prod_fk']}
+                ORDER BY p.{schema['prod_name']}
+            """
+            cursor.execute(query)
+            products = cursor.fetchall()
+            
+            for product in products:
+                self.products_tree.insert(
+                    "",
+                    tk.END,
+                    values=(
+                        product['id'],
+                        product['name'],
+                        product['category_name'] or 'N/A',
+                        f"₱{product['price']:.2f}",
+                        product['stock'],
+                        product['description'] or 'No description'
+                    )
+                )
+            
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load products: {e}")
+    
+    def add_product_window(self):
+        """Open window to add a new product"""
+        add_window = tk.Toplevel(self.product_window)
+        add_window.title("Add New Product")
+        add_window.geometry("600x700")
+        add_window.configure(bg=self.bg_color)
+        
+        # Center the window
+        add_window.update_idletasks()
+        width, height = 600, 700
+        screen_width = add_window.winfo_screenwidth()
+        screen_height = add_window.winfo_screenheight()
+        x = (screen_width - width) // 2
+        y = (screen_height - height) // 2
+        add_window.geometry(f"{width}x{height}+{x}+{y}")
+        
+        # Form frame
+        form_frame = tk.Frame(add_window, bg=self.card_bg, relief='raised', bd=2)
+        form_frame.pack(fill='both', expand=True, padx=20, pady=20)
+        
+        tk.Label(
+            form_frame,
+            text="Add New Product",
+            font=("Arial", 16, "bold"),
+            bg=self.card_bg,
+            fg="#4A3728"
+        ).pack(pady=20)
+        
+        # Category selection
+        tk.Label(
+            form_frame,
+            text="Category:",
+            font=("Arial", 11, "bold"),
+            bg=self.card_bg,
+            fg="#4A3728"
+        ).pack(anchor='w', padx=20, pady=(10, 5))
+        
+        category_var = tk.StringVar()
+        category_combo = ttk.Combobox(
+            form_frame,
+            textvariable=category_var,
+            font=("Arial", 11),
+            state='readonly',
+            width=40
+        )
+        category_combo.pack(padx=20, pady=(0, 10), fill='x')
+        
+        categories = self.get_categories()
+        category_dict = {cat['name']: cat['id'] for cat in categories}
+        category_combo['values'] = list(category_dict.keys())
+        if categories:
+            category_combo.current(0)
+        
+        # Product name
+        tk.Label(
+            form_frame,
+            text="Product Name:",
+            font=("Arial", 11, "bold"),
+            bg=self.card_bg,
+            fg="#4A3728"
+        ).pack(anchor='w', padx=20, pady=(10, 5))
+        
+        name_entry = tk.Entry(form_frame, font=("Arial", 11), width=40)
+        name_entry.pack(padx=20, pady=(0, 10))
+        
+        # Description
+        tk.Label(
+            form_frame,
+            text="Description:",
+            font=("Arial", 11, "bold"),
+            bg=self.card_bg,
+            fg="#4A3728"
+        ).pack(anchor='w', padx=20, pady=(10, 5))
+        
+        desc_text = tk.Text(form_frame, font=("Arial", 11), width=40, height=4)
+        desc_text.pack(padx=20, pady=(0, 10))
+        
+        # Price
+        tk.Label(
+            form_frame,
+            text="Price (₱):",
+            font=("Arial", 11, "bold"),
+            bg=self.card_bg,
+            fg="#4A3728"
+        ).pack(anchor='w', padx=20, pady=(10, 5))
+        
+        price_entry = tk.Entry(form_frame, font=("Arial", 11), width=40)
+        price_entry.pack(padx=20, pady=(0, 10))
+        
+        # Initial stock
+        tk.Label(
+            form_frame,
+            text="Initial Stock Quantity:",
+            font=("Arial", 11, "bold"),
+            bg=self.card_bg,
+            fg="#4A3728"
+        ).pack(anchor='w', padx=20, pady=(10, 5))
+        
+        stock_entry = tk.Entry(form_frame, font=("Arial", 11), width=40)
+        stock_entry.insert(0, "100")
+        stock_entry.pack(padx=20, pady=(0, 10))
+        
+        # Image path (optional)
+        image_path_var = tk.StringVar()
+        
+        def browse_image():
+            filename = filedialog.askopenfilename(
+                title="Select Product Image",
+                filetypes=[("Image files", "*.png *.jpg *.jpeg *.gif *.bmp")]
+            )
+            if filename:
+                image_path_var.set(filename)
+        
+        tk.Label(
+            form_frame,
+            text="Image Path (Optional):",
+            font=("Arial", 11, "bold"),
+            bg=self.card_bg,
+            fg="#4A3728"
+        ).pack(anchor='w', padx=20, pady=(10, 5))
+        
+        image_frame = tk.Frame(form_frame, bg=self.card_bg)
+        image_frame.pack(padx=20, pady=(0, 10), fill='x')
+        
+        image_entry = tk.Entry(image_frame, textvariable=image_path_var, font=("Arial", 11), width=30)
+        image_entry.pack(side='left', fill='x', expand=True)
+        
+        browse_btn = tk.Button(
+            image_frame,
+            text="Browse",
+            font=("Arial", 10),
+            bg="#6C757D",
+            fg="white",
+            relief='flat',
+            command=browse_image,
+            width=10
+        )
+        browse_btn.pack(side='right', padx=(5, 0))
+        
+        # Buttons
+        button_frame = tk.Frame(form_frame, bg=self.card_bg)
+        button_frame.pack(pady=20)
+        
+        def save_product():
+            try:
+                category_name = category_var.get()
+                if not category_name:
+                    messagebox.showerror("Error", "Please select a category")
+                    return
+                
+                category_id = category_dict[category_name]
+                name = name_entry.get().strip()
+                description = desc_text.get("1.0", tk.END).strip()
+                price = float(price_entry.get())
+                stock = int(stock_entry.get())
+                image_path = image_path_var.get().strip() or None
+                
+                if not name:
+                    messagebox.showerror("Error", "Product name is required")
+                    return
+                
+                if price < 0:
+                    messagebox.showerror("Error", "Price cannot be negative")
+                    return
+                
+                if stock < 0:
+                    messagebox.showerror("Error", "Stock cannot be negative")
+                    return
+                
+                # Add product
+                success = ProductRepository.add_product(
+                    category_id, name, description, price, image_path
+                )
+                
+                if success:
+                    # Get the product ID
+                    conn = get_db_connection()
+                    cursor = conn.cursor(dictionary=True)
+                    cursor.execute("SELECT LAST_INSERT_ID() as id")
+                    product_id = cursor.fetchone()['id']
+                    
+                    # Add inventory entry
+                    cursor.execute(
+                        "INSERT INTO inventory (product_id, quantity) VALUES (%s, %s)",
+                        (product_id, stock)
+                    )
+                    conn.commit()
+                    cursor.close()
+                    conn.close()
+                    
+                    messagebox.showinfo("Success", f"Product '{name}' added successfully!")
+                    add_window.destroy()
+                    self.refresh_products_list()
+                else:
+                    messagebox.showerror("Error", "Failed to add product")
+            
+            except ValueError:
+                messagebox.showerror("Error", "Invalid price or stock value")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to add product: {e}")
+        
+        save_btn = tk.Button(
+            button_frame,
+            text="Save Product",
+            font=("Arial", 12, "bold"),
+            bg="#28A745",
+            fg="white",
+            relief='flat',
+            command=save_product,
+            width=15,
+            padx=10
+        )
+        save_btn.pack(side='left', padx=5)
+        
+        cancel_btn = tk.Button(
+            button_frame,
+            text="Cancel",
             font=("Arial", 12),
             bg="#6C757D",
+            fg="white",
+            relief='flat',
+            command=add_window.destroy,
+            width=15,
+            padx=10
+        )
+        cancel_btn.pack(side='left', padx=5)
+    
+    def edit_product_window(self):
+        """Open window to edit selected product"""
+        selection = self.products_tree.selection()
+        if not selection:
+            messagebox.showwarning("No Selection", "Please select a product to edit")
+            return
+        
+        item = self.products_tree.item(selection[0])
+        product_id = item['values'][0]
+        
+        # Get product details using dynamic PK column
+        try:
+            id_col = self._get_product_id_column()
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            query = f"""
+                SELECT p.*, c.name as category_name
+                FROM products p
+                LEFT JOIN categories c ON p.category_id = c.id
+                WHERE p.{id_col} = %s
+            """
+            cursor.execute(query, (product_id,))
+            product = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            
+            if not product:
+                messagebox.showerror("Error", "Product not found")
+                return
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load product: {e}")
+            return
+        
+        edit_window = tk.Toplevel(self.product_window)
+        edit_window.title("Edit Product")
+        edit_window.geometry("600x700")
+        edit_window.configure(bg=self.bg_color)
+        
+        # Center the window
+        edit_window.update_idletasks()
+        width, height = 600, 700
+        screen_width = edit_window.winfo_screenwidth()
+        screen_height = edit_window.winfo_screenheight()
+        x = (screen_width - width) // 2
+        y = (screen_height - height) // 2
+        edit_window.geometry(f"{width}x{height}+{x}+{y}")
+        
+        # Form frame
+        form_frame = tk.Frame(edit_window, bg=self.card_bg, relief='raised', bd=2)
+        form_frame.pack(fill='both', expand=True, padx=20, pady=20)
+        
+        tk.Label(
+            form_frame,
+            text=f"Edit Product: {product['name']}",
+            font=("Arial", 16, "bold"),
+            bg=self.card_bg,
+            fg="#4A3728"
+        ).pack(pady=20)
+        
+        # Category selection
+        tk.Label(
+            form_frame,
+            text="Category:",
+            font=("Arial", 11, "bold"),
+            bg=self.card_bg,
+            fg="#4A3728"
+        ).pack(anchor='w', padx=20, pady=(10, 5))
+        
+        category_var = tk.StringVar()
+        category_combo = ttk.Combobox(
+            form_frame,
+            textvariable=category_var,
+            font=("Arial", 11),
+            state='readonly',
+            width=40
+        )
+        category_combo.pack(padx=20, pady=(0, 10), fill='x')
+        
+        categories = self.get_categories()
+        category_dict = {cat['name']: cat['id'] for cat in categories}
+        category_combo['values'] = list(category_dict.keys())
+        
+        # Set current category
+        current_cat = product.get('category_name', '')
+        if current_cat in category_dict:
+            category_combo.set(current_cat)
+        elif categories:
+            category_combo.current(0)
+        
+        # Product name
+        tk.Label(
+            form_frame,
+            text="Product Name:",
+            font=("Arial", 11, "bold"),
+            bg=self.card_bg,
+            fg="#4A3728"
+        ).pack(anchor='w', padx=20, pady=(10, 5))
+        
+        name_entry = tk.Entry(form_frame, font=("Arial", 11), width=40)
+        name_entry.insert(0, product['name'])
+        name_entry.pack(padx=20, pady=(0, 10))
+        
+        # Description
+        tk.Label(
+            form_frame,
+            text="Description:",
+            font=("Arial", 11, "bold"),
+            bg=self.card_bg,
+            fg="#4A3728"
+        ).pack(anchor='w', padx=20, pady=(10, 5))
+        
+        desc_text = tk.Text(form_frame, font=("Arial", 11), width=40, height=4)
+        desc_text.insert("1.0", product.get('description', ''))
+        desc_text.pack(padx=20, pady=(0, 10))
+        
+        # Price
+        tk.Label(
+            form_frame,
+            text="Price (₱):",
+            font=("Arial", 11, "bold"),
+            bg=self.card_bg,
+            fg="#4A3728"
+        ).pack(anchor='w', padx=20, pady=(10, 5))
+        
+        price_entry = tk.Entry(form_frame, font=("Arial", 11), width=40)
+        price_entry.insert(0, str(product['price']))
+        price_entry.pack(padx=20, pady=(0, 10))
+        
+        # Image path
+        image_path_var = tk.StringVar(value=product.get('image_path', ''))
+        
+        def browse_image():
+            filename = filedialog.askopenfilename(
+                title="Select Product Image",
+                filetypes=[("Image files", "*.png *.jpg *.jpeg *.gif *.bmp")]
+            )
+            if filename:
+                image_path_var.set(filename)
+        
+        tk.Label(
+            form_frame,
+            text="Image Path (Optional):",
+            font=("Arial", 11, "bold"),
+            bg=self.card_bg,
+            fg="#4A3728"
+        ).pack(anchor='w', padx=20, pady=(10, 5))
+        
+        image_frame = tk.Frame(form_frame, bg=self.card_bg)
+        image_frame.pack(padx=20, pady=(0, 10), fill='x')
+        
+        image_entry = tk.Entry(image_frame, textvariable=image_path_var, font=("Arial", 11), width=30)
+        image_entry.pack(side='left', fill='x', expand=True)
+        
+        browse_btn = tk.Button(
+            image_frame,
+            text="Browse",
+            font=("Arial", 10),
+            bg="#6C757D",
+            fg="white",
+            relief='flat',
+            command=browse_image,
+            width=10
+        )
+        browse_btn.pack(side='right', padx=(5, 0))
+        
+        # Buttons
+        button_frame = tk.Frame(form_frame, bg=self.card_bg)
+        button_frame.pack(pady=20)
+        
+        def update_product():
+            try:
+                category_name = category_var.get()
+                if not category_name:
+                    messagebox.showerror("Error", "Please select a category")
+                    return
+                
+                category_id = category_dict[category_name]
+                name = name_entry.get().strip()
+                description = desc_text.get("1.0", tk.END).strip()
+                price = float(price_entry.get())
+                image_path = image_path_var.get().strip() or None
+                
+                if not name:
+                    messagebox.showerror("Error", "Product name is required")
+                    return
+                
+                if price < 0:
+                    messagebox.showerror("Error", "Price cannot be negative")
+                    return
+                
+                # Update product
+                success = ProductRepository.update_product(
+                    product_id, category_id=category_id, name=name,
+                    description=description, price=price, image_path=image_path
+                )
+                
+                if success:
+                    messagebox.showinfo("Success", f"Product '{name}' updated successfully!")
+                    edit_window.destroy()
+                    self.refresh_products_list()
+                else:
+                    messagebox.showerror("Error", "Failed to update product")
+            
+            except ValueError:
+                messagebox.showerror("Error", "Invalid price value")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to update product: {e}")
+        
+        save_btn = tk.Button(
+            button_frame,
+            text="Update Product",
+            font=("Arial", 12, "bold"),
+            bg=self.button_color,
+            fg=self.text_color,
+            relief='flat',
+            command=update_product,
+            width=15,
+            padx=10
+        )
+        save_btn.pack(side='left', padx=5)
+        
+        cancel_btn = tk.Button(
+            button_frame,
+            text="Cancel",
+            font=("Arial", 12),
+            bg="#6C757D",
+            fg="white",
+            relief='flat',
+            command=edit_window.destroy,
+            width=15,
+            padx=10
+        )
+        cancel_btn.pack(side='left', padx=5)
+    
+    def delete_product(self):
+        """Delete selected product"""
+        selection = self.products_tree.selection()
+        if not selection:
+            messagebox.showwarning("No Selection", "Please select a product to delete")
+            return
+        
+        item = self.products_tree.item(selection[0])
+        product_id = item['values'][0]
+        product_name = item['values'][1]
+        
+        # Confirm deletion
+        confirm = messagebox.askyesno(
+            "Confirm Delete",
+            f"Are you sure you want to delete '{product_name}'?\n\n"
+            "This action cannot be undone and will also remove inventory records."
+        )
+        
+        if confirm:
+            try:
+                id_col = self._get_product_id_column()
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                
+                query = f"DELETE FROM products WHERE {id_col} = %s"
+                cursor.execute(query, (product_id,))
+                conn.commit()
+                
+                success = cursor.rowcount > 0
+                cursor.close()
+                conn.close()
+                
+                if success:
+                    messagebox.showinfo("Success", f"Product '{product_name}' deleted successfully!")
+                    self.refresh_products_list()
+                else:
+                    messagebox.showerror("Error", "Failed to delete product")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to delete product: {e}")
+    
+    def manage_inventory(self):
+        """Open inventory management window"""
+        self.inventory_window = tk.Toplevel(self.window)
+        self.inventory_window.title("Inventory Management")
+        self.inventory_window.geometry("1200x700")
+        self.inventory_window.configure(bg=self.bg_color)
+        
+        # Center the window
+        self.inventory_window.update_idletasks()
+        width, height = 1200, 700
+        screen_width = self.inventory_window.winfo_screenwidth()
+        screen_height = self.inventory_window.winfo_screenheight()
+        x = (screen_width - width) // 2
+        y = (screen_height - height) // 2
+        self.inventory_window.geometry(f"{width}x{height}+{x}+{y}")
+        
+        # Header
+        header_frame = tk.Frame(self.inventory_window, bg=self.bg_color, height=60)
+        header_frame.pack(fill='x', padx=20, pady=10)
+        header_frame.pack_propagate(False)
+        
+        title_label = tk.Label(
+            header_frame,
+            text="Inventory Management - Stock Tracking",
+            font=("Arial", 18, "bold"),
+            bg=self.bg_color,
+            fg=self.accent_color
+        )
+        title_label.pack(side='left')
+        
+        # Main content
+        main_frame = tk.Frame(self.inventory_window, bg=self.bg_color)
+        main_frame.pack(fill='both', expand=True, padx=20, pady=10)
+        
+        # Inventory list
+        list_frame = tk.Frame(main_frame, bg=self.card_bg, relief='raised', bd=2)
+        list_frame.pack(fill='both', expand=True)
+        
+        tk.Label(
+            list_frame,
+            text="Current Stock Levels",
+            font=("Arial", 14, "bold"),
+            bg=self.card_bg,
+            fg="#4A3728"
+        ).pack(pady=10)
+        
+        # Treeview with scrollbars
+        tree_frame = tk.Frame(list_frame, bg=self.card_bg)
+        tree_frame.pack(fill='both', expand=True, padx=10, pady=10)
+        
+        scrollbar_y = tk.Scrollbar(tree_frame, orient='vertical')
+        scrollbar_x = tk.Scrollbar(tree_frame, orient='horizontal')
+        
+        self.inventory_tree = ttk.Treeview(
+            tree_frame,
+            columns=("ID", "Product", "Category", "Current Stock", "Status"),
+            show='headings',
+            yscrollcommand=scrollbar_y.set,
+            xscrollcommand=scrollbar_x.set,
+            height=20
+        )
+        
+        scrollbar_y.config(command=self.inventory_tree.yview)
+        scrollbar_x.config(command=self.inventory_tree.xview)
+        
+        # Configure columns
+        self.inventory_tree.heading("ID", text="ID")
+        self.inventory_tree.heading("Product", text="Product Name")
+        self.inventory_tree.heading("Category", text="Category")
+        self.inventory_tree.heading("Current Stock", text="Current Stock")
+        self.inventory_tree.heading("Status", text="Status")
+        
+        self.inventory_tree.column("ID", width=50, anchor='center')
+        self.inventory_tree.column("Product", width=250, anchor='w')
+        self.inventory_tree.column("Category", width=150, anchor='w')
+        self.inventory_tree.column("Current Stock", width=150, anchor='center')
+        self.inventory_tree.column("Status", width=150, anchor='center')
+        
+        self.inventory_tree.pack(side='left', fill='both', expand=True)
+        scrollbar_y.pack(side='right', fill='y')
+        scrollbar_x.pack(side='bottom', fill='x')
+        
+        # Action buttons
+        button_frame = tk.Frame(list_frame, bg=self.card_bg)
+        button_frame.pack(fill='x', pady=10)
+        
+        update_stock_btn = tk.Button(
+            button_frame,
+            text="📦 Update Stock",
+            font=("Arial", 11),
+            bg=self.button_color,
             fg=self.text_color,
             relief='flat',
             bd=0,
-            command=self.reset_permissions,
-            width=15
+            command=self.update_stock_window,
+            width=15,
+            padx=10
         )
-        reset_btn.pack(side='left')
+        update_stock_btn.pack(side='left', padx=5)
         
-        # Bind selection event
-        self.user_listbox.bind('<<ListboxSelect>>', self.on_user_select)
+        refresh_inv_btn = tk.Button(
+            button_frame,
+            text="🔄 Refresh",
+            font=("Arial", 11),
+            bg="#6C757D",
+            fg="white",
+            relief='flat',
+            bd=0,
+            command=self.refresh_inventory_list,
+            width=15,
+            padx=10
+        )
+        refresh_inv_btn.pack(side='left', padx=5)
         
-        # Load first user by default
-        if self.user_listbox.size() > 0:
-            self.user_listbox.selection_set(0)
-            self.on_user_select(None)
+        # Load inventory
+        self.refresh_inventory_list()
     
-    def populate_user_list(self):
-        """Populate the user list with sample data"""
-        # Mock user data - in a real application, this would come from a database
-        self.users_data = {
-            "admin": {
-                "name": "John Admin",
-                "email": "admin@bigbrew.com",
-                "role": "Administrator",
-                "status": "Active",
-                "last_login": "2024-01-15 09:30:00",
-                "permissions": ["user_mgmt", "system_settings", "reports", "database"]
-            },
-            "manager": {
-                "name": "Sarah Manager",
-                "email": "manager@bigbrew.com",
-                "role": "Manager",
-                "status": "Active",
-                "last_login": "2024-01-15 08:45:00",
-                "permissions": ["staff_mgmt", "sales_reports", "inventory", "schedule"]
-            },
-            "cashier": {
-                "name": "Mike Cashier",
-                "email": "cashier@bigbrew.com",
-                "role": "Cashier",
-                "status": "Active",
-                "last_login": "2024-01-15 07:15:00",
-                "permissions": ["pos", "customer_mgmt"]
-            },
-            "barista": {
-                "name": "Emma Barista",
-                "email": "barista@bigbrew.com",
-                "role": "Barista",
-                "status": "Active",
-                "last_login": "2024-01-15 06:30:00",
-                "permissions": ["order_mgmt", "recipe_access", "time_tracking"]
-            },
-            "inventory_manager": {
-                "name": "David Inventory",
-                "email": "inventory@bigbrew.com",
-                "role": "Inventory Manager",
-                "status": "Active",
-                "last_login": "2024-01-14 16:20:00",
-                "permissions": ["inventory", "supplier_mgmt", "purchase_orders"]
-            }
-        }
-        
+    def refresh_inventory_list(self):
+        """Refresh the inventory list"""
         # Clear existing items
-        self.user_listbox.delete(0, tk.END)
+        for item in self.inventory_tree.get_children():
+            self.inventory_tree.delete(item)
         
-        # Add users to listbox
-        for user_id, user_data in self.users_data.items():
-            display_text = f"{user_data['name']} ({user_data['role']})"
-            self.user_listbox.insert(tk.END, display_text)
+        try:
+            schema = self._get_schema()
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            query = f"""
+                SELECT p.{schema['prod_id']} as id,
+                       p.{schema['prod_name']} as name,
+                       c.{schema['cat_name']} as category_name,
+                       COALESCE(i.{schema['inv_qty']}, 0) as stock
+                FROM products p
+                LEFT JOIN categories c ON p.{schema['prod_cat_fk']} = c.{schema['cat_id']}
+                LEFT JOIN inventory i ON p.{schema['prod_id']} = i.{schema['inv_prod_fk']}
+                ORDER BY p.{schema['prod_name']}
+            """
+            cursor.execute(query)
+            products = cursor.fetchall()
+            
+            for product in products:
+                stock = product['stock']
+                if stock == 0:
+                    status = "Out of Stock"
+                    status_color = "#DC3545"
+                elif stock < 10:
+                    status = "Low Stock"
+                    status_color = "#FFC107"
+                else:
+                    status = "In Stock"
+                    status_color = "#28A745"
+                
+                item_id = self.inventory_tree.insert(
+                    "",
+                    tk.END,
+                    values=(
+                        product['id'],
+                        product['name'],
+                        product['category_name'] or 'N/A',
+                        stock,
+                        status
+                    ),
+                    tags=(status_color,)
+                )
+                
+                # Configure tag colors
+                self.inventory_tree.tag_configure(status_color, foreground=status_color)
+            
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load inventory: {e}")
     
-    def on_user_select(self, event):
-        """Handle user selection from listbox"""
-        selection = self.user_listbox.curselection()
+    def update_stock_window(self):
+        """Open window to update stock for selected product"""
+        selection = self.inventory_tree.selection()
         if not selection:
+            messagebox.showwarning("No Selection", "Please select a product to update stock")
             return
+        
+        item = self.inventory_tree.item(selection[0])
+        product_id = item['values'][0]
+        product_name = item['values'][1]
+        current_stock = item['values'][3]
+        
+        update_window = tk.Toplevel(self.inventory_window)
+        update_window.title("Update Stock")
+        update_window.geometry("400x300")
+        update_window.configure(bg=self.bg_color)
+        
+        # Center the window
+        update_window.update_idletasks()
+        width, height = 400, 300
+        screen_width = update_window.winfo_screenwidth()
+        screen_height = update_window.winfo_screenheight()
+        x = (screen_width - width) // 2
+        y = (screen_height - height) // 2
+        update_window.geometry(f"{width}x{height}+{x}+{y}")
+        
+        # Form frame
+        form_frame = tk.Frame(update_window, bg=self.card_bg, relief='raised', bd=2)
+        form_frame.pack(fill='both', expand=True, padx=20, pady=20)
+        
+        tk.Label(
+            form_frame,
+            text=f"Update Stock: {product_name}",
+            font=("Arial", 14, "bold"),
+            bg=self.card_bg,
+            fg="#4A3728"
+        ).pack(pady=20)
+        
+        tk.Label(
+            form_frame,
+            text=f"Current Stock: {current_stock}",
+            font=("Arial", 12),
+            bg=self.card_bg,
+            fg="#4A3728"
+        ).pack(pady=10)
+        
+        tk.Label(
+            form_frame,
+            text="New Stock Quantity:",
+            font=("Arial", 11, "bold"),
+            bg=self.card_bg,
+            fg="#4A3728"
+        ).pack(pady=(20, 5))
+        
+        stock_entry = tk.Entry(form_frame, font=("Arial", 12), width=20)
+        stock_entry.insert(0, str(current_stock))
+        stock_entry.pack(pady=10)
+        stock_entry.select_range(0, tk.END)
+        stock_entry.focus()
+        
+        # Buttons
+        button_frame = tk.Frame(form_frame, bg=self.card_bg)
+        button_frame.pack(pady=20)
+        
+        def save_stock():
+            try:
+                new_stock = int(stock_entry.get())
+                if new_stock < 0:
+                    messagebox.showerror("Error", "Stock cannot be negative")
+                    return
+                
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                
+                # Check if inventory record exists
+                cursor.execute("SELECT id FROM inventory WHERE product_id = %s", (product_id,))
+                exists = cursor.fetchone()
+                
+                if exists:
+                    # Update existing record
+                    cursor.execute(
+                        "UPDATE inventory SET quantity = %s WHERE product_id = %s",
+                        (new_stock, product_id)
+                    )
+                else:
+                    # Create new record
+                    cursor.execute(
+                        "INSERT INTO inventory (product_id, quantity) VALUES (%s, %s)",
+                        (product_id, new_stock)
+                    )
+                
+                conn.commit()
+                cursor.close()
+                conn.close()
+                
+                messagebox.showinfo("Success", f"Stock updated to {new_stock} for {product_name}")
+                update_window.destroy()
+                self.refresh_inventory_list()
             
-        index = selection[0]
-        user_ids = list(self.users_data.keys())
-        if index < len(user_ids):
-            user_id = user_ids[index]
-            self.current_user_id = user_id
-            self.display_user_details(user_id)
-    
-    def display_user_details(self, user_id):
-        """Display user details and permissions"""
-        user_data = self.users_data[user_id]
+            except ValueError:
+                messagebox.showerror("Error", "Please enter a valid number")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to update stock: {e}")
         
-        # Clear existing user info
-        for widget in self.user_info_frame.winfo_children():
-            widget.destroy()
+        save_btn = tk.Button(
+            button_frame,
+            text="Update Stock",
+            font=("Arial", 12, "bold"),
+            bg="#28A745",
+            fg="white",
+            relief='flat',
+            command=save_stock,
+            width=15,
+            padx=10
+        )
+        save_btn.pack(side='left', padx=5)
         
-        # Display user information
-        info_labels = [
-            ("Name:", user_data['name']),
-            ("Email:", user_data['email']),
-            ("Role:", user_data['role']),
-            ("Status:", user_data['status']),
-            ("Last Login:", user_data['last_login'])
-        ]
+        cancel_btn = tk.Button(
+            button_frame,
+            text="Cancel",
+            font=("Arial", 12),
+            bg="#6C757D",
+            fg="white",
+            relief='flat',
+            command=update_window.destroy,
+            width=15,
+            padx=10
+        )
+        cancel_btn.pack(side='left', padx=5)
         
-        for i, (label_text, value_text) in enumerate(info_labels):
-            label = tk.Label(
-                self.user_info_frame,
-                text=label_text,
-                font=("Arial", 10, "bold"),
-                bg=self.card_bg,
-                fg="#4A3728"
-            )
-            label.grid(row=i, column=0, sticky='w', padx=(0, 10))
-            
-            value = tk.Label(
-                self.user_info_frame,
-                text=value_text,
-                font=("Arial", 10),
-                bg=self.card_bg,
-                fg="#4A3728"
-            )
-            value.grid(row=i, column=1, sticky='w')
-        
-        # Update permission checkboxes
-        self.update_permission_checkboxes(user_data['permissions'])
-    
-    def update_permission_checkboxes(self, permissions):
-        """Update permission checkboxes based on user permissions"""
-        for permission_key, var in self.permission_vars.items():
-            var.set(permission_key in permissions)
-    
-    def update_permissions(self):
-        """Handle permission checkbox changes"""
-        # This method can be used to implement real-time permission updates
-        pass
-    
-    def save_user_changes(self):
-        """Save user permission changes"""
-        if not hasattr(self, 'current_user_id'):
-            messagebox.showwarning("No Selection", "Please select a user first")
-            return
-        
-        # Get current permissions
-        current_permissions = []
-        for permission_key, var in self.permission_vars.items():
-            if var.get():
-                current_permissions.append(permission_key)
-        
-        # Update user data
-        self.users_data[self.current_user_id]['permissions'] = current_permissions
-        
-        messagebox.showinfo("Success", f"Permissions updated for {self.users_data[self.current_user_id]['name']}")
-        
-        # Refresh the display
-        self.display_user_details(self.current_user_id)
-    
-    def reset_permissions(self):
-        """Reset permissions to default for selected user"""
-        if not hasattr(self, 'current_user_id'):
-            messagebox.showwarning("No Selection", "Please select a user first")
-            return
-        
-        # Get default permissions based on role
-        role_defaults = {
-            'admin': ["user_mgmt", "system_settings", "reports", "database"],
-            'manager': ["staff_mgmt", "sales_reports", "inventory", "schedule"],
-            'cashier': ["pos", "customer_mgmt"],
-            'barista': ["order_mgmt", "recipe_access", "time_tracking"],
-            'inventory_manager': ["inventory", "supplier_mgmt", "purchase_orders"]
-        }
-        
-        user_role = self.users_data[self.current_user_id]['role'].lower()
-        if user_role in role_defaults:
-            default_permissions = role_defaults[user_role]
-            self.update_permission_checkboxes(default_permissions)
-            messagebox.showinfo("Reset", f"Permissions reset to default for {user_role} role")
-        
-    def system_settings(self):
-        messagebox.showinfo("System Settings", "System settings functionality will be implemented here")
-        
-    def view_reports(self):
-        """Open the reports and analytics window"""
-        from reports import ReportsAnalytics
-        reports = ReportsAnalytics(self.window)
-        
-    def database_tools(self):
-        messagebox.showinfo("Database Tools", "Database management tools will be implemented here")
 
 class ManagerDashboard(BaseDashboard):
     def create_main_content(self):
