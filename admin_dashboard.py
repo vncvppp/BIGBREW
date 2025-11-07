@@ -51,6 +51,13 @@ class BaseDashboard:
         except Exception:
             pass
         
+        # Hide the login window (main app root) when dashboard opens
+        if hasattr(self.login_window, 'root'):
+            try:
+                self.login_window.root.withdraw()  # Hide the main window
+            except Exception:
+                pass
+        
         # Color scheme
         self.bg_color = "#4A3728"
         self.accent_color = "#FFD700"
@@ -182,12 +189,21 @@ class BaseDashboard:
     def logout(self):
         """Handle logout"""
         self.window.destroy()
+        # Show the login window (main app root) again
+        if hasattr(self.login_window, 'root'):
+            try:
+                self.login_window.root.deiconify()  # Show the main window
+            except Exception:
+                pass
         # Call the main app's logout method if it exists
         if hasattr(self.login_window, 'logout'):
             self.login_window.logout()
         else:
             # Fallback: show the login window
-            self.login_window.deiconify()
+            try:
+                self.login_window.deiconify()
+            except Exception:
+                pass
         
     def on_closing(self):
         """Handle window close"""
@@ -258,6 +274,58 @@ class AdminDashboard(BaseDashboard):
             justify='center'
         )
         inventory_summary.pack(pady=(0, 10))
+        
+        # Sales Management
+        sales_card = self.create_card(controls_frame, "Sales Management", 1, 0)
+        sales_btn = tk.Button(
+            sales_card,
+            text="Manage Sales",
+            font=("Arial", 12),
+            bg=self.button_color,
+            fg=self.text_color,
+            relief='flat',
+            bd=0,
+            command=self.manage_sales,
+            height=2
+        )
+        sales_btn.pack(expand=True, fill='both', padx=10, pady=10)
+        
+        # Add sales summary
+        sales_summary = tk.Label(
+            sales_card,
+            text="View, filter, and manage\nsales transactions",
+            font=("Arial", 9),
+            bg=self.card_bg,
+            fg="#666666",
+            justify='center'
+        )
+        sales_summary.pack(pady=(0, 10))
+        
+        # Reports & Analytics
+        reports_card = self.create_card(controls_frame, "Reports & Analytics", 1, 1)
+        reports_btn = tk.Button(
+            reports_card,
+            text="View Reports",
+            font=("Arial", 12),
+            bg=self.button_color,
+            fg=self.text_color,
+            relief='flat',
+            bd=0,
+            command=self.view_reports,
+            height=2
+        )
+        reports_btn.pack(expand=True, fill='both', padx=10, pady=10)
+        
+        # Add reports summary
+        reports_summary = tk.Label(
+            reports_card,
+            text="Sales analytics, inventory\nreports, and insights",
+            font=("Arial", 9),
+            bg=self.card_bg,
+            fg="#666666",
+            justify='center'
+        )
+        reports_summary.pack(pady=(0, 10))
         
     def create_card(self, parent, title, row, col):
         """Create a dashboard card"""
@@ -1366,6 +1434,406 @@ class AdminDashboard(BaseDashboard):
             padx=10
         )
         cancel_btn.pack(side='left', padx=5)
+    
+    def manage_sales(self):
+        """Open sales management window"""
+        self.sales_window = tk.Toplevel(self.window)
+        self.sales_window.title("Sales Management")
+        self.sales_window.geometry("1400x800")
+        self.sales_window.configure(bg=self.bg_color)
+        
+        # Center the window
+        self.sales_window.update_idletasks()
+        width, height = 1400, 800
+        screen_width = self.sales_window.winfo_screenwidth()
+        screen_height = self.sales_window.winfo_screenheight()
+        x = (screen_width - width) // 2
+        y = (screen_height - height) // 2
+        self.sales_window.geometry(f"{width}x{height}+{x}+{y}")
+        
+        # Header
+        header_frame = tk.Frame(self.sales_window, bg=self.bg_color, height=60)
+        header_frame.pack(fill='x', padx=20, pady=10)
+        header_frame.pack_propagate(False)
+        
+        title_label = tk.Label(
+            header_frame,
+            text="Sales Management - View and Manage Transactions",
+            font=("Arial", 18, "bold"),
+            bg=self.bg_color,
+            fg=self.accent_color
+        )
+        title_label.pack(side='left')
+        
+        # Filter frame
+        filter_frame = tk.Frame(header_frame, bg=self.bg_color)
+        filter_frame.pack(side='right')
+        
+        tk.Label(
+            filter_frame,
+            text="Date Range:",
+            font=("Arial", 10),
+            bg=self.bg_color,
+            fg=self.text_color
+        ).pack(side='left', padx=5)
+        
+        date_filter_var = tk.StringVar(value="All")
+        date_filter = ttk.Combobox(
+            filter_frame,
+            textvariable=date_filter_var,
+            values=["All", "Today", "Last 7 Days", "Last 30 Days", "This Month", "Last Month"],
+            state='readonly',
+            width=15
+        )
+        date_filter.pack(side='left', padx=5)
+        date_filter.bind('<<ComboboxSelected>>', lambda e: self.refresh_sales_list())
+        
+        # Main content area
+        main_frame = tk.Frame(self.sales_window, bg=self.bg_color)
+        main_frame.pack(fill='both', expand=True, padx=20, pady=10)
+        
+        # Sales list with Treeview
+        list_frame = tk.Frame(main_frame, bg=self.card_bg, relief='raised', bd=2)
+        list_frame.pack(fill='both', expand=True)
+        
+        tk.Label(
+            list_frame,
+            text="Sales Transactions",
+            font=("Arial", 14, "bold"),
+            bg=self.card_bg,
+            fg="#4A3728"
+        ).pack(pady=10)
+        
+        # Treeview with scrollbars
+        tree_frame = tk.Frame(list_frame, bg=self.card_bg)
+        tree_frame.pack(fill='both', expand=True, padx=10, pady=10)
+        
+        scrollbar_y = tk.Scrollbar(tree_frame, orient='vertical')
+        scrollbar_x = tk.Scrollbar(tree_frame, orient='horizontal')
+        
+        self.sales_tree = ttk.Treeview(
+            tree_frame,
+            columns=("ID", "Date", "Customer", "Total Amount", "Payment Method", "Items"),
+            show='headings',
+            yscrollcommand=scrollbar_y.set,
+            xscrollcommand=scrollbar_x.set,
+            height=20
+        )
+        
+        scrollbar_y.config(command=self.sales_tree.yview)
+        scrollbar_x.config(command=self.sales_tree.xview)
+        
+        # Configure columns
+        self.sales_tree.heading("ID", text="Sale ID")
+        self.sales_tree.heading("Date", text="Date & Time")
+        self.sales_tree.heading("Customer", text="Customer")
+        self.sales_tree.heading("Total Amount", text="Total (₱)")
+        self.sales_tree.heading("Payment Method", text="Payment")
+        self.sales_tree.heading("Items", text="Items")
+        
+        self.sales_tree.column("ID", width=80, anchor='center')
+        self.sales_tree.column("Date", width=180, anchor='w')
+        self.sales_tree.column("Customer", width=200, anchor='w')
+        self.sales_tree.column("Total Amount", width=120, anchor='center')
+        self.sales_tree.column("Payment Method", width=120, anchor='center')
+        self.sales_tree.column("Items", width=300, anchor='w')
+        
+        self.sales_tree.pack(side='left', fill='both', expand=True)
+        scrollbar_y.pack(side='right', fill='y')
+        scrollbar_x.pack(side='bottom', fill='x')
+        
+        # Action buttons
+        button_frame = tk.Frame(list_frame, bg=self.card_bg)
+        button_frame.pack(fill='x', pady=10)
+        
+        view_details_btn = tk.Button(
+            button_frame,
+            text="📋 View Details",
+            font=("Arial", 11),
+            bg=self.button_color,
+            fg=self.text_color,
+            relief='flat',
+            bd=0,
+            command=self.view_sale_details,
+            width=15,
+            padx=10
+        )
+        view_details_btn.pack(side='left', padx=5)
+        
+        delete_sale_btn = tk.Button(
+            button_frame,
+            text="❌ Delete Sale",
+            font=("Arial", 11),
+            bg="#DC3545",
+            fg="white",
+            relief='flat',
+            bd=0,
+            command=self.delete_sale,
+            width=15,
+            padx=10
+        )
+        delete_sale_btn.pack(side='left', padx=5)
+        
+        refresh_sales_btn = tk.Button(
+            button_frame,
+            text="🔄 Refresh",
+            font=("Arial", 11),
+            bg="#6C757D",
+            fg="white",
+            relief='flat',
+            bd=0,
+            command=self.refresh_sales_list,
+            width=15,
+            padx=10
+        )
+        refresh_sales_btn.pack(side='left', padx=5)
+        
+        # Store filter variable
+        self.date_filter_var = date_filter_var
+        
+        # Load sales
+        self.refresh_sales_list()
+    
+    def refresh_sales_list(self):
+        """Refresh the sales list"""
+        # Clear existing items
+        for item in self.sales_tree.get_children():
+            self.sales_tree.delete(item)
+        
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            # Build date filter
+            date_filter = getattr(self, 'date_filter_var', tk.StringVar(value="All")).get()
+            date_condition = ""
+            params = []
+            
+            if date_filter == "Today":
+                date_condition = "DATE(s.sale_date) = CURDATE()"
+            elif date_filter == "Last 7 Days":
+                date_condition = "s.sale_date >= DATE_SUB(NOW(), INTERVAL 7 DAY)"
+            elif date_filter == "Last 30 Days":
+                date_condition = "s.sale_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
+            elif date_filter == "This Month":
+                date_condition = "MONTH(s.sale_date) = MONTH(NOW()) AND YEAR(s.sale_date) = YEAR(NOW())"
+            elif date_filter == "Last Month":
+                date_condition = "MONTH(s.sale_date) = MONTH(DATE_SUB(NOW(), INTERVAL 1 MONTH)) AND YEAR(s.sale_date) = YEAR(DATE_SUB(NOW(), INTERVAL 1 MONTH))"
+            
+            where_clause = f"WHERE {date_condition}" if date_condition else ""
+            
+            query = f"""
+                SELECT s.id, s.sale_date, s.total_amount, s.payment_method,
+                       COALESCE(c.first_name, '') as customer_first,
+                       COALESCE(c.last_name, '') as customer_last,
+                       (SELECT GROUP_CONCAT(CONCAT(si.quantity, 'x ', p.name) SEPARATOR ', ')
+                        FROM sale_items si
+                        JOIN products p ON si.product_id = p.id
+                        WHERE si.sale_id = s.id) as items
+                FROM sales s
+                LEFT JOIN customers c ON s.customer_id = c.id
+                {where_clause}
+                ORDER BY s.sale_date DESC
+            """
+            
+            cursor.execute(query, params)
+            sales = cursor.fetchall()
+            
+            for sale in sales:
+                customer_name = f"{sale['customer_first']} {sale['customer_last']}".strip() or "Walk-in"
+                sale_date = sale['sale_date']
+                if isinstance(sale_date, str):
+                    sale_date_str = sale_date
+                else:
+                    sale_date_str = sale_date.strftime("%Y-%m-%d %H:%M:%S")
+                
+                self.sales_tree.insert(
+                    "",
+                    tk.END,
+                    values=(
+                        sale['id'],
+                        sale_date_str,
+                        customer_name,
+                        f"₱{sale['total_amount']:.2f}",
+                        sale['payment_method'].title(),
+                        sale['items'] or 'N/A'
+                    )
+                )
+            
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load sales: {e}")
+    
+    def view_sale_details(self):
+        """View details of selected sale"""
+        selection = self.sales_tree.selection()
+        if not selection:
+            messagebox.showwarning("No Selection", "Please select a sale to view details")
+            return
+        
+        item = self.sales_tree.item(selection[0])
+        sale_id = item['values'][0]
+        
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            # Get sale details
+            cursor.execute("""
+                SELECT s.*, 
+                       COALESCE(c.first_name, '') as customer_first,
+                       COALESCE(c.last_name, '') as customer_last
+                FROM sales s
+                LEFT JOIN customers c ON s.customer_id = c.id
+                WHERE s.id = %s
+            """, (sale_id,))
+            sale = cursor.fetchone()
+            
+            # Get sale items
+            cursor.execute("""
+                SELECT si.*, p.name as product_name
+                FROM sale_items si
+                JOIN products p ON si.product_id = p.id
+                WHERE si.sale_id = %s
+            """, (sale_id,))
+            items = cursor.fetchall()
+            
+            cursor.close()
+            conn.close()
+            
+            if not sale:
+                messagebox.showerror("Error", "Sale not found")
+                return
+            
+            # Show details window
+            details_window = tk.Toplevel(self.sales_window)
+            details_window.title(f"Sale Details - #{sale_id}")
+            details_window.geometry("600x500")
+            details_window.configure(bg=self.bg_color)
+            
+            # Center the window
+            details_window.update_idletasks()
+            width, height = 600, 500
+            screen_width = details_window.winfo_screenwidth()
+            screen_height = details_window.winfo_screenheight()
+            x = (screen_width - width) // 2
+            y = (screen_height - height) // 2
+            details_window.geometry(f"{width}x{height}+{x}+{y}")
+            
+            # Form frame
+            form_frame = tk.Frame(details_window, bg=self.card_bg, relief='raised', bd=2)
+            form_frame.pack(fill='both', expand=True, padx=20, pady=20)
+            
+            tk.Label(
+                form_frame,
+                text=f"Sale Details - #{sale_id}",
+                font=("Arial", 16, "bold"),
+                bg=self.card_bg,
+                fg="#4A3728"
+            ).pack(pady=20)
+            
+            # Sale info
+            info_text = f"""
+Sale ID: {sale['id']}
+Date: {sale['sale_date']}
+Customer: {f"{sale['customer_first']} {sale['customer_last']}".strip() or 'Walk-in'}
+Payment Method: {sale['payment_method'].title()}
+Total Amount: ₱{sale['total_amount']:.2f}
+
+Items:
+"""
+            tk.Label(
+                form_frame,
+                text=info_text,
+                font=("Arial", 11),
+                bg=self.card_bg,
+                fg="#4A3728",
+                justify='left',
+                anchor='w'
+            ).pack(padx=20, pady=10, anchor='w')
+            
+            # Items list
+            items_text = ""
+            for item in items:
+                items_text += f"  • {item['quantity']}x {item['product_name']} @ ₱{item['price']:.2f} = ₱{item['quantity'] * item['price']:.2f}\n"
+            
+            items_label = tk.Label(
+                form_frame,
+                text=items_text,
+                font=("Arial", 10),
+                bg=self.card_bg,
+                fg="#666666",
+                justify='left',
+                anchor='w'
+            )
+            items_label.pack(padx=20, pady=10, anchor='w')
+            
+            # Close button
+            close_btn = tk.Button(
+                form_frame,
+                text="Close",
+                font=("Arial", 12),
+                bg="#6C757D",
+                fg="white",
+                relief='flat',
+                command=details_window.destroy,
+                width=15,
+                padx=10
+            )
+            close_btn.pack(pady=20)
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load sale details: {e}")
+    
+    def delete_sale(self):
+        """Delete selected sale"""
+        selection = self.sales_tree.selection()
+        if not selection:
+            messagebox.showwarning("No Selection", "Please select a sale to delete")
+            return
+        
+        item = self.sales_tree.item(selection[0])
+        sale_id = item['values'][0]
+        sale_date = item['values'][1]
+        
+        # Confirm deletion
+        confirm = messagebox.askyesno(
+            "Confirm Delete",
+            f"Are you sure you want to delete sale #{sale_id} from {sale_date}?\n\n"
+            "This action cannot be undone and will also remove all associated sale items."
+        )
+        
+        if confirm:
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                
+                # Delete sale (cascade will delete sale_items)
+                cursor.execute("DELETE FROM sales WHERE id = %s", (sale_id,))
+                conn.commit()
+                
+                success = cursor.rowcount > 0
+                cursor.close()
+                conn.close()
+                
+                if success:
+                    messagebox.showinfo("Success", f"Sale #{sale_id} deleted successfully!")
+                    self.refresh_sales_list()
+                else:
+                    messagebox.showerror("Error", "Failed to delete sale")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to delete sale: {e}")
+    
+    def view_reports(self):
+        """Open reports and analytics window"""
+        try:
+            from reports import ReportsAnalytics
+            reports = ReportsAnalytics(self.window)
+        except ImportError:
+            messagebox.showerror("Error", "Reports module not available")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to open reports: {e}")
         
 
 class ManagerDashboard(BaseDashboard):
