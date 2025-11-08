@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from datetime import datetime
-from repositories.product_repository import ProductRepository
 from db_config import get_db_connection
 import mysql.connector
 
@@ -214,6 +213,176 @@ class BaseDashboard:
         self.window.mainloop()
 
 class AdminDashboard(BaseDashboard):
+    CURATED_PRODUCTS = [
+        {
+            "id": 1,
+            "name": "Cookies n Cream",
+            "category": "milk tea",
+            "price_regular": 29.00,
+            "price_large": 39.00,
+            "description": "Crushed chocolate cookies blended with creamy milk tea.",
+        },
+        {
+            "id": 2,
+            "name": "Okinawa",
+            "category": "milk tea",
+            "price_regular": 29.00,
+            "price_large": 39.00,
+            "description": "Rich brown sugar milk tea with a mellow roasted finish.",
+        },
+        {
+            "id": 3,
+            "name": "Dark Choco",
+            "category": "milk tea",
+            "price_regular": 29.00,
+            "price_large": 39.00,
+            "description": "Bold cocoa infused milk tea with bittersweet notes.",
+        },
+        {
+            "id": 4,
+            "name": "Matcha",
+            "category": "milk tea",
+            "price_regular": 29.00,
+            "price_large": 39.00,
+            "description": "Earthy Japanese green tea balanced with creamy milk.",
+        },
+        {
+            "id": 5,
+            "name": "Red Velvet",
+            "category": "milk tea",
+            "price_regular": 29.00,
+            "price_large": 39.00,
+            "description": "Velvety cocoa and cream cheese inspired milk tea.",
+        },
+        {
+            "id": 6,
+            "name": "Winter Melon",
+            "category": "milk tea",
+            "price_regular": 29.00,
+            "price_large": 39.00,
+            "description": "Classic winter melon nectar with a caramelized sweetness.",
+        },
+        {
+            "id": 7,
+            "name": "Cheesecake",
+            "category": "milk tea",
+            "price_regular": 29.00,
+            "price_large": 39.00,
+            "description": "Silky cheesecake cream layered over smooth milk tea.",
+        },
+        {
+            "id": 8,
+            "name": "Chocolate",
+            "category": "milk tea",
+            "price_regular": 29.00,
+            "price_large": 39.00,
+            "description": "Classic chocolate milk tea with a sweet, silky finish.",
+        },
+        {
+            "id": 9,
+            "name": "Taro",
+            "category": "milk tea",
+            "price_regular": 29.00,
+            "price_large": 39.00,
+            "description": "Creamy taro root flavor blended into rich milk tea.",
+        },
+        {
+            "id": 10,
+            "name": "Salted Caramel",
+            "category": "milk tea",
+            "price_regular": 29.00,
+            "price_large": 39.00,
+            "description": "Sweet caramel milk tea with a hint of sea salt.",
+        },
+        {
+            "id": 11,
+            "name": "Brusko",
+            "category": "coffee",
+            "price_regular": 29.00,
+            "price_large": 39.00,
+            "description": "Strong brewed coffee with bold smoky undertones.",
+        },
+        {
+            "id": 12,
+            "name": "Mocha",
+            "category": "coffee",
+            "price_regular": 29.00,
+            "price_large": 39.00,
+            "description": "Chocolate kissed espresso with creamy milk foam.",
+        },
+        {
+            "id": 13,
+            "name": "Macchiato",
+            "category": "coffee",
+            "price_regular": 29.00,
+            "price_large": 39.00,
+            "description": "Espresso crowned with a dollop of velvety milk foam.",
+        },
+        {
+            "id": 14,
+            "name": "Vanilla",
+            "category": "coffee",
+            "price_regular": 29.00,
+            "price_large": 39.00,
+            "description": "Smooth espresso mellowed with fragrant vanilla cream.",
+        },
+        {
+            "id": 15,
+            "name": "Caramel",
+            "category": "coffee",
+            "price_regular": 29.00,
+            "price_large": 39.00,
+            "description": "Buttery caramel espresso rounded with creamy milk.",
+        },
+        {
+            "id": 16,
+            "name": "Matcha",
+            "category": "coffee",
+            "price_regular": 29.00,
+            "price_large": 39.00,
+            "description": "Espresso fused with vibrant matcha for an energizing blend.",
+        },
+        {
+            "id": 17,
+            "name": "Fudge",
+            "category": "coffee",
+            "price_regular": 29.00,
+            "price_large": 39.00,
+            "description": "Rich espresso layered with gooey chocolate fudge syrup.",
+        },
+        {
+            "id": 18,
+            "name": "Spanish Latte",
+            "category": "coffee",
+            "price_regular": 29.00,
+            "price_large": 39.00,
+            "description": "Velvety espresso sweetened with condensed milk.",
+        },
+    ]
+
+    def __init__(self, user_data, login_window):
+        self.product_inventory = {item["id"]: 100 for item in self.CURATED_PRODUCTS}
+        super().__init__(user_data, login_window)
+
+    def _get_curated_products(self):
+        """Return curated products merged with current stock levels."""
+        products = []
+        for product in self.CURATED_PRODUCTS:
+            merged = product.copy()
+            merged["stock"] = self.product_inventory.get(product["id"], 0)
+            products.append(merged)
+        return products
+    
+    def _get_curated_product_by_id(self, product_id):
+        for product in self.CURATED_PRODUCTS:
+            if product["id"] == product_id:
+                return product
+        return None
+    
+    def _refresh_inventory_view(self):
+        if getattr(self, 'inventory_tree', None) and self.inventory_tree.winfo_exists():
+            self.refresh_inventory_list()
+
     def create_main_content(self):
         """Create admin-specific content with CRUD operations"""
         content_frame = tk.Frame(self.window, bg=self.bg_color)
@@ -416,22 +585,126 @@ class AdminDashboard(BaseDashboard):
             'inv_prod_fk': inv_prod_fk,
         }
     
+    def _get_sales_schema(self):
+        """Detect varying column names for sales-related tables"""
+        sales_cols = self._get_table_columns('sales')
+        sale_items_cols = self._get_table_columns('sale_items')
+        customer_cols = self._get_table_columns('customers')
+        product_cols = self._get_table_columns('products')
+
+        def find_col(columns, exact=(), contains=()):
+            for name in exact:
+                if name in columns:
+                    return name
+            for patterns in contains:
+                for col in columns:
+                    lower = col.lower()
+                    if all(pattern in lower for pattern in patterns):
+                        return col
+            return columns[0] if columns else None
+
+        sale_id = find_col(
+            sales_cols,
+            exact=('id', 'sale_id'),
+            contains=(('sale', 'id'),)
+        )
+        sale_date = find_col(
+            sales_cols,
+            exact=('sale_date', 'date', 'created_at', 'transaction_date'),
+            contains=(('sale', 'date'), ('trans', 'date'), ('order', 'date'), ('date',),)
+        )
+        total_amount = find_col(
+            sales_cols,
+            exact=('total_amount', 'grand_total', 'amount', 'total'),
+            contains=(('total', 'amount'), ('grand', 'total'), ('amount',),)
+        )
+        payment_method = find_col(
+            sales_cols,
+            exact=('payment_method', 'payment_type', 'paymentmode'),
+            contains=(('payment', 'method'), ('payment', 'type'), ('pay',),)
+        )
+        customer_fk = find_col(
+            sales_cols,
+            exact=('customer_id', 'client_id', 'customer'),
+            contains=(('customer', 'id'), ('client', 'id'), ('cust',),)
+        )
+
+        customer_id = find_col(
+            customer_cols,
+            exact=('id', 'customer_id'),
+            contains=(('customer', 'id'), ('client', 'id'),)
+        )
+        customer_first = find_col(
+            customer_cols,
+            exact=('first_name', 'firstname', 'given_name'),
+            contains=(('first',), ('given',),)
+        )
+        customer_last = find_col(
+            customer_cols,
+            exact=('last_name', 'lastname', 'surname', 'family_name'),
+            contains=(('last',), ('sur', 'name'), ('family',),)
+        )
+
+        sale_item_sale_fk = find_col(
+            sale_items_cols,
+            exact=('sale_id', 'sales_id', 'order_id'),
+            contains=(('sale', 'id'), ('order', 'id'),)
+        )
+        sale_item_product_fk = find_col(
+            sale_items_cols,
+            exact=('product_id', 'item_id'),
+            contains=(('product', 'id'), ('item', 'id'),)
+        )
+        sale_item_qty = find_col(
+            sale_items_cols,
+            exact=('quantity', 'qty', 'amount'),
+            contains=(('qty',), ('quantity',),)
+        )
+        sale_item_price = find_col(
+            sale_items_cols,
+            exact=('price', 'unit_price', 'amount'),
+            contains=(('price',), ('amount',),)
+        )
+
+        product_name = find_col(
+            product_cols,
+            exact=('name', 'product_name'),
+            contains=(('product', 'name'),)
+        )
+        product_id = find_col(
+            product_cols,
+            exact=('id', 'product_id'),
+            contains=(('product', 'id'),)
+        )
+
+        return {
+            'sale_id': sale_id or 'id',
+            'sale_date': sale_date or 'sale_date',
+            'total_amount': total_amount or 'total_amount',
+            'payment_method': payment_method or 'payment_method',
+            'customer_fk': customer_fk or 'customer_id',
+            'customer_pk': customer_id or 'id',
+            'customer_first': customer_first or 'first_name',
+            'customer_last': customer_last or 'last_name',
+            'sale_item_sale_fk': sale_item_sale_fk or 'sale_id',
+            'sale_item_product_fk': sale_item_product_fk or 'product_id',
+            'sale_item_qty': sale_item_qty or 'quantity',
+            'sale_item_price': sale_item_price or 'price',
+            'product_name': product_name or 'name',
+            'product_id': product_id or 'id',
+        }
+    
     def get_categories(self):
         """Get all categories from database"""
-        try:
-            schema = self._get_schema()
-            conn = get_db_connection()
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute(
-                f"SELECT {schema['cat_id']} as id, {schema['cat_name']} as name FROM categories ORDER BY {schema['cat_name']}"
-            )
-            categories = cursor.fetchall()
-            cursor.close()
-            conn.close()
-            return categories
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to load categories: {e}")
-            return []
+        categories = [
+            {"id": "milk tea", "name": "milk tea"},
+            {"id": "praf", "name": "praf"},
+            {"id": "fruit tea", "name": "fruit tea"},
+            {"id": "coffee", "name": "coffee"},
+            {"id": "brosty", "name": "brosty"},
+            {"id": "add-on", "name": "add-on"},
+        ]
+        return categories
     
     def manage_products(self):
         """Open product management window with CRUD operations"""
@@ -502,7 +775,7 @@ class AdminDashboard(BaseDashboard):
         
         self.products_tree = ttk.Treeview(
             tree_frame,
-            columns=("ID", "Name", "Category", "Price", "Stock", "Description"),
+            columns=("ID", "Name", "Category", "PriceRegular", "PriceLarge", "Description"),
             show='headings',
             yscrollcommand=scrollbar_y.set,
             xscrollcommand=scrollbar_x.set,
@@ -516,16 +789,16 @@ class AdminDashboard(BaseDashboard):
         self.products_tree.heading("ID", text="ID")
         self.products_tree.heading("Name", text="Product Name")
         self.products_tree.heading("Category", text="Category")
-        self.products_tree.heading("Price", text="Price (₱)")
-        self.products_tree.heading("Stock", text="Stock")
+        self.products_tree.heading("PriceRegular", text="Price Regular (₱)")
+        self.products_tree.heading("PriceLarge", text="Price Large (₱)")
         self.products_tree.heading("Description", text="Description")
         
         self.products_tree.column("ID", width=50, anchor='center')
-        self.products_tree.column("Name", width=200, anchor='w')
-        self.products_tree.column("Category", width=150, anchor='w')
-        self.products_tree.column("Price", width=100, anchor='center')
-        self.products_tree.column("Stock", width=100, anchor='center')
-        self.products_tree.column("Description", width=300, anchor='w')
+        self.products_tree.column("Name", width=220, anchor='w')
+        self.products_tree.column("Category", width=140, anchor='w')
+        self.products_tree.column("PriceRegular", width=140, anchor='center')
+        self.products_tree.column("PriceLarge", width=140, anchor='center')
+        self.products_tree.column("Description", width=360, anchor='w')
         
         self.products_tree.pack(side='left', fill='both', expand=True)
         scrollbar_y.pack(side='right', fill='y')
@@ -586,48 +859,19 @@ class AdminDashboard(BaseDashboard):
         for item in self.products_tree.get_children():
             self.products_tree.delete(item)
         
-        try:
-            schema = self._get_schema()
-            conn = get_db_connection()
-            cursor = conn.cursor(dictionary=True)
-            
-            # Get products with inventory
-            select_desc = f", p.{schema['prod_desc']} as description" if schema['prod_desc'] else ""
-            select_image = f", p.{schema['prod_image']} as image_path" if schema['prod_image'] else ""
-            query = f"""
-                SELECT p.{schema['prod_id']} as id,
-                       p.{schema['prod_name']} as name
-                       {select_desc},
-                       p.{schema['prod_price']} as price
-                       {select_image},
-                       c.{schema['cat_name']} as category_name,
-                       COALESCE(i.{schema['inv_qty']}, 0) as stock
-                FROM products p
-                LEFT JOIN categories c ON p.{schema['prod_cat_fk']} = c.{schema['cat_id']}
-                LEFT JOIN inventory i ON p.{schema['prod_id']} = i.{schema['inv_prod_fk']}
-                ORDER BY p.{schema['prod_name']}
-            """
-            cursor.execute(query)
-            products = cursor.fetchall()
-            
-            for product in products:
-                self.products_tree.insert(
-                    "",
-                    tk.END,
-                    values=(
-                        product['id'],
-                        product['name'],
-                        product['category_name'] or 'N/A',
-                        f"₱{product['price']:.2f}",
-                        product['stock'],
-                        product['description'] or 'No description'
-                    )
+        for product in self._get_curated_products():
+            self.products_tree.insert(
+                "",
+                tk.END,
+                values=(
+                    product["id"],
+                    product["name"],
+                    product["category"],
+                    f"₱{product['price_regular']:.2f}",
+                    f"₱{product['price_large']:.2f}",
+                    product["description"]
                 )
-            
-            cursor.close()
-            conn.close()
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to load products: {e}")
+            )
     
     def add_product_window(self):
         """Open window to add a new product"""
@@ -779,7 +1023,6 @@ class AdminDashboard(BaseDashboard):
                     messagebox.showerror("Error", "Please select a category")
                     return
                 
-                category_id = category_dict[category_name]
                 name = name_entry.get().strip()
                 description = desc_text.get("1.0", tk.END).strip()
                 price = float(price_entry.get())
@@ -798,32 +1041,27 @@ class AdminDashboard(BaseDashboard):
                     messagebox.showerror("Error", "Stock cannot be negative")
                     return
                 
-                # Add product
-                success = ProductRepository.add_product(
-                    category_id, name, description, price, image_path
-                )
+                # Determine new product ID
+                existing_ids = [product["id"] for product in self.CURATED_PRODUCTS]
+                new_id = max(existing_ids) + 1 if existing_ids else 1
                 
-                if success:
-                    # Get the product ID
-                    conn = get_db_connection()
-                    cursor = conn.cursor(dictionary=True)
-                    cursor.execute("SELECT LAST_INSERT_ID() as id")
-                    product_id = cursor.fetchone()['id']
-                    
-                    # Add inventory entry
-                    cursor.execute(
-                        "INSERT INTO inventory (product_id, quantity) VALUES (%s, %s)",
-                        (product_id, stock)
-                    )
-                    conn.commit()
-                    cursor.close()
-                    conn.close()
-                    
-                    messagebox.showinfo("Success", f"Product '{name}' added successfully!")
-                    add_window.destroy()
-                    self.refresh_products_list()
-                else:
-                    messagebox.showerror("Error", "Failed to add product")
+                new_product = {
+                    "id": new_id,
+                    "name": name,
+                    "category": category_name,
+                    "price_regular": price,
+                    "price_large": price + 10 if price >= 0 else price,
+                    "description": description or "No description",
+                    "image_path": image_path,
+                }
+                
+                self.CURATED_PRODUCTS.append(new_product)
+                self.product_inventory[new_id] = stock
+                
+                messagebox.showinfo("Success", f"Product '{name}' added successfully!")
+                add_window.destroy()
+                self.refresh_products_list()
+                self._refresh_inventory_view()
             
             except ValueError:
                 messagebox.showerror("Error", "Invalid price or stock value")
@@ -866,28 +1104,9 @@ class AdminDashboard(BaseDashboard):
         item = self.products_tree.item(selection[0])
         product_id = item['values'][0]
         
-        # Get product details using dynamic PK column
-        try:
-            id_col = self._get_product_id_column()
-            conn = get_db_connection()
-            cursor = conn.cursor(dictionary=True)
-            
-            query = f"""
-                SELECT p.*, c.name as category_name
-                FROM products p
-                LEFT JOIN categories c ON p.category_id = c.id
-                WHERE p.{id_col} = %s
-            """
-            cursor.execute(query, (product_id,))
-            product = cursor.fetchone()
-            cursor.close()
-            conn.close()
-            
-            if not product:
-                messagebox.showerror("Error", "Product not found")
-                return
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to load product: {e}")
+        product = self._get_curated_product_by_id(product_id)
+        if not product:
+            messagebox.showerror("Error", "Product not found")
             return
         
         edit_window = tk.Toplevel(self.product_window)
@@ -940,7 +1159,7 @@ class AdminDashboard(BaseDashboard):
         category_combo['values'] = list(category_dict.keys())
         
         # Set current category
-        current_cat = product.get('category_name', '')
+        current_cat = product.get('category', '')
         if current_cat in category_dict:
             category_combo.set(current_cat)
         elif categories:
@@ -982,7 +1201,7 @@ class AdminDashboard(BaseDashboard):
         ).pack(anchor='w', padx=20, pady=(10, 5))
         
         price_entry = tk.Entry(form_frame, font=("Arial", 11), width=40)
-        price_entry.insert(0, str(product['price']))
+        price_entry.insert(0, str(product.get('price_regular', 0)))
         price_entry.pack(padx=20, pady=(0, 10))
         
         # Image path
@@ -1033,7 +1252,6 @@ class AdminDashboard(BaseDashboard):
                     messagebox.showerror("Error", "Please select a category")
                     return
                 
-                category_id = category_dict[category_name]
                 name = name_entry.get().strip()
                 description = desc_text.get("1.0", tk.END).strip()
                 price = float(price_entry.get())
@@ -1047,18 +1265,22 @@ class AdminDashboard(BaseDashboard):
                     messagebox.showerror("Error", "Price cannot be negative")
                     return
                 
-                # Update product
-                success = ProductRepository.update_product(
-                    product_id, category_id=category_id, name=name,
-                    description=description, price=price, image_path=image_path
-                )
+                updated = self._get_curated_product_by_id(product_id)
+                if not updated:
+                    messagebox.showerror("Error", "Product not found")
+                    return
                 
-                if success:
-                    messagebox.showinfo("Success", f"Product '{name}' updated successfully!")
-                    edit_window.destroy()
-                    self.refresh_products_list()
-                else:
-                    messagebox.showerror("Error", "Failed to update product")
+                updated["name"] = name
+                updated["category"] = category_name
+                updated["description"] = description or "No description"
+                updated["price_regular"] = price
+                updated["price_large"] = price + 10 if price >= 0 else price
+                updated["image_path"] = image_path
+                
+                messagebox.showinfo("Success", f"Product '{name}' updated successfully!")
+                edit_window.destroy()
+                self.refresh_products_list()
+                self._refresh_inventory_view()
             
             except ValueError:
                 messagebox.showerror("Error", "Invalid price value")
@@ -1110,26 +1332,19 @@ class AdminDashboard(BaseDashboard):
         )
         
         if confirm:
-            try:
-                id_col = self._get_product_id_column()
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                
-                query = f"DELETE FROM products WHERE {id_col} = %s"
-                cursor.execute(query, (product_id,))
-                conn.commit()
-                
-                success = cursor.rowcount > 0
-                cursor.close()
-                conn.close()
-                
-                if success:
-                    messagebox.showinfo("Success", f"Product '{product_name}' deleted successfully!")
-                    self.refresh_products_list()
-                else:
-                    messagebox.showerror("Error", "Failed to delete product")
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to delete product: {e}")
+            original_length = len(self.CURATED_PRODUCTS)
+            filtered = [
+                product for product in self.CURATED_PRODUCTS if product["id"] != product_id
+            ]
+            self.__class__.CURATED_PRODUCTS = filtered
+            self.product_inventory.pop(product_id, None)
+            
+            if len(self.CURATED_PRODUCTS) < original_length:
+                messagebox.showinfo("Success", f"Product '{product_name}' deleted successfully!")
+                self.refresh_products_list()
+                self._refresh_inventory_view()
+            else:
+                messagebox.showerror("Error", "Failed to delete product")
     
     def manage_inventory(self):
         """Open inventory management window"""
@@ -1137,6 +1352,19 @@ class AdminDashboard(BaseDashboard):
         self.inventory_window.title("Inventory Management")
         self.inventory_window.geometry("1200x700")
         self.inventory_window.configure(bg=self.bg_color)
+        
+        def close_inventory():
+            try:
+                if getattr(self, 'inventory_tree', None) is not None:
+                    self.inventory_tree = None
+            except Exception:
+                pass
+            win = getattr(self, 'inventory_window', None)
+            if win is not None:
+                self.inventory_window = None
+                win.destroy()
+        
+        self.inventory_window.protocol("WM_DELETE_WINDOW", close_inventory)
         
         # Center the window
         self.inventory_window.update_idletasks()
@@ -1186,7 +1414,7 @@ class AdminDashboard(BaseDashboard):
         
         self.inventory_tree = ttk.Treeview(
             tree_frame,
-            columns=("ID", "Product", "Category", "Current Stock", "Status"),
+            columns=("ID", "Product", "Category", "PriceRegular", "PriceLarge", "Current Stock", "Status"),
             show='headings',
             yscrollcommand=scrollbar_y.set,
             xscrollcommand=scrollbar_x.set,
@@ -1200,14 +1428,18 @@ class AdminDashboard(BaseDashboard):
         self.inventory_tree.heading("ID", text="ID")
         self.inventory_tree.heading("Product", text="Product Name")
         self.inventory_tree.heading("Category", text="Category")
+        self.inventory_tree.heading("PriceRegular", text="Price Regular (₱)")
+        self.inventory_tree.heading("PriceLarge", text="Price Large (₱)")
         self.inventory_tree.heading("Current Stock", text="Current Stock")
         self.inventory_tree.heading("Status", text="Status")
         
         self.inventory_tree.column("ID", width=50, anchor='center')
-        self.inventory_tree.column("Product", width=250, anchor='w')
-        self.inventory_tree.column("Category", width=150, anchor='w')
-        self.inventory_tree.column("Current Stock", width=150, anchor='center')
-        self.inventory_tree.column("Status", width=150, anchor='center')
+        self.inventory_tree.column("Product", width=230, anchor='w')
+        self.inventory_tree.column("Category", width=130, anchor='w')
+        self.inventory_tree.column("PriceRegular", width=140, anchor='center')
+        self.inventory_tree.column("PriceLarge", width=140, anchor='center')
+        self.inventory_tree.column("Current Stock", width=140, anchor='center')
+        self.inventory_tree.column("Status", width=130, anchor='center')
         
         self.inventory_tree.pack(side='left', fill='both', expand=True)
         scrollbar_y.pack(side='right', fill='y')
@@ -1250,60 +1482,52 @@ class AdminDashboard(BaseDashboard):
     
     def refresh_inventory_list(self):
         """Refresh the inventory list"""
-        # Clear existing items
-        for item in self.inventory_tree.get_children():
-            self.inventory_tree.delete(item)
-        
+        tree = getattr(self, 'inventory_tree', None)
+        if tree is None:
+            return
         try:
-            schema = self._get_schema()
-            conn = get_db_connection()
-            cursor = conn.cursor(dictionary=True)
+            if not tree.winfo_exists():
+                return
+        except tk.TclError:
+            return
+        # Clear existing items
+        try:
+            for item in tree.get_children():
+                tree.delete(item)
+        except tk.TclError:
+            return
+        
+        for product in self._get_curated_products():
+            stock = product["stock"]
+            if stock == 0:
+                status = "Out of Stock"
+                status_color = "#DC3545"
+            elif stock < 10:
+                status = "Low Stock"
+                status_color = "#FFC107"
+            else:
+                status = "In Stock"
+                status_color = "#28A745"
             
-            query = f"""
-                SELECT p.{schema['prod_id']} as id,
-                       p.{schema['prod_name']} as name,
-                       c.{schema['cat_name']} as category_name,
-                       COALESCE(i.{schema['inv_qty']}, 0) as stock
-                FROM products p
-                LEFT JOIN categories c ON p.{schema['prod_cat_fk']} = c.{schema['cat_id']}
-                LEFT JOIN inventory i ON p.{schema['prod_id']} = i.{schema['inv_prod_fk']}
-                ORDER BY p.{schema['prod_name']}
-            """
-            cursor.execute(query)
-            products = cursor.fetchall()
+            try:
+                item_id = tree.insert(
+                "",
+                tk.END,
+                values=(
+                    product["id"],
+                    product["name"],
+                    product["category"],
+                    f"₱{product['price_regular']:.2f}",
+                    f"₱{product['price_large']:.2f}",
+                    stock,
+                    status
+                ),
+                tags=(status_color,)
+            )
             
-            for product in products:
-                stock = product['stock']
-                if stock == 0:
-                    status = "Out of Stock"
-                    status_color = "#DC3545"
-                elif stock < 10:
-                    status = "Low Stock"
-                    status_color = "#FFC107"
-                else:
-                    status = "In Stock"
-                    status_color = "#28A745"
-                
-                item_id = self.inventory_tree.insert(
-                    "",
-                    tk.END,
-                    values=(
-                        product['id'],
-                        product['name'],
-                        product['category_name'] or 'N/A',
-                        stock,
-                        status
-                    ),
-                    tags=(status_color,)
-                )
-                
-                # Configure tag colors
-                self.inventory_tree.tag_configure(status_color, foreground=status_color)
-            
-            cursor.close()
-            conn.close()
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to load inventory: {e}")
+                tree.tag_configure(status_color, foreground=status_color)
+            except tk.TclError:
+                return
     
     def update_stock_window(self):
         """Open window to update stock for selected product"""
@@ -1313,9 +1537,9 @@ class AdminDashboard(BaseDashboard):
             return
         
         item = self.inventory_tree.item(selection[0])
-        product_id = item['values'][0]
+        product_id = int(item['values'][0])
         product_name = item['values'][1]
-        current_stock = item['values'][3]
+        current_stock = int(item['values'][5])
         
         update_window = tk.Toplevel(self.inventory_window)
         update_window.title("Update Stock")
@@ -1376,33 +1600,12 @@ class AdminDashboard(BaseDashboard):
                     messagebox.showerror("Error", "Stock cannot be negative")
                     return
                 
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                
-                # Check if inventory record exists
-                cursor.execute("SELECT id FROM inventory WHERE product_id = %s", (product_id,))
-                exists = cursor.fetchone()
-                
-                if exists:
-                    # Update existing record
-                    cursor.execute(
-                        "UPDATE inventory SET quantity = %s WHERE product_id = %s",
-                        (new_stock, product_id)
-                    )
-                else:
-                    # Create new record
-                    cursor.execute(
-                        "INSERT INTO inventory (product_id, quantity) VALUES (%s, %s)",
-                        (product_id, new_stock)
-                    )
-                
-                conn.commit()
-                cursor.close()
-                conn.close()
+                self.product_inventory[product_id] = new_stock
                 
                 messagebox.showinfo("Success", f"Stock updated to {new_stock} for {product_name}")
                 update_window.destroy()
                 self.refresh_inventory_list()
+                self.refresh_products_list()
             
             except ValueError:
                 messagebox.showerror("Error", "Please enter a valid number")
@@ -1603,6 +1806,20 @@ class AdminDashboard(BaseDashboard):
         try:
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
+            schema = self._get_sales_schema()
+            sale_id_col = schema['sale_id']
+            sale_date_col = schema['sale_date']
+            total_amount_col = schema['total_amount']
+            payment_method_col = schema['payment_method']
+            customer_fk_col = schema['customer_fk']
+            customer_pk_col = schema['customer_pk']
+            customer_first_col = schema['customer_first']
+            customer_last_col = schema['customer_last']
+            sale_item_sale_fk = schema['sale_item_sale_fk']
+            sale_item_qty = schema['sale_item_qty']
+            sale_item_product_fk = schema['sale_item_product_fk']
+            product_name_col = schema['product_name']
+            product_id_col = schema['product_id']
             
             # Build date filter
             date_filter = getattr(self, 'date_filter_var', tk.StringVar(value="All")).get()
@@ -1610,30 +1827,38 @@ class AdminDashboard(BaseDashboard):
             params = []
             
             if date_filter == "Today":
-                date_condition = "DATE(s.sale_date) = CURDATE()"
+                date_condition = f"DATE(s.{sale_date_col}) = CURDATE()"
             elif date_filter == "Last 7 Days":
-                date_condition = "s.sale_date >= DATE_SUB(NOW(), INTERVAL 7 DAY)"
+                date_condition = f"s.{sale_date_col} >= DATE_SUB(NOW(), INTERVAL 7 DAY)"
             elif date_filter == "Last 30 Days":
-                date_condition = "s.sale_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
+                date_condition = f"s.{sale_date_col} >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
             elif date_filter == "This Month":
-                date_condition = "MONTH(s.sale_date) = MONTH(NOW()) AND YEAR(s.sale_date) = YEAR(NOW())"
+                date_condition = f"MONTH(s.{sale_date_col}) = MONTH(NOW()) AND YEAR(s.{sale_date_col}) = YEAR(NOW())"
             elif date_filter == "Last Month":
-                date_condition = "MONTH(s.sale_date) = MONTH(DATE_SUB(NOW(), INTERVAL 1 MONTH)) AND YEAR(s.sale_date) = YEAR(DATE_SUB(NOW(), INTERVAL 1 MONTH))"
+                date_condition = (
+                    f"MONTH(s.{sale_date_col}) = MONTH(DATE_SUB(NOW(), INTERVAL 1 MONTH)) "
+                    f"AND YEAR(s.{sale_date_col}) = YEAR(DATE_SUB(NOW(), INTERVAL 1 MONTH))"
+                )
             
             where_clause = f"WHERE {date_condition}" if date_condition else ""
             
             query = f"""
-                SELECT s.id, s.sale_date, s.total_amount, s.payment_method,
-                       COALESCE(c.first_name, '') as customer_first,
-                       COALESCE(c.last_name, '') as customer_last,
-                       (SELECT GROUP_CONCAT(CONCAT(si.quantity, 'x ', p.name) SEPARATOR ', ')
-                        FROM sale_items si
-                        JOIN products p ON si.product_id = p.id
-                        WHERE si.sale_id = s.id) as items
+                SELECT s.{sale_id_col} AS sale_id,
+                       s.{sale_date_col} AS sale_date,
+                       s.{total_amount_col} AS total_amount,
+                       s.{payment_method_col} AS payment_method,
+                       COALESCE(c.{customer_first_col}, '') AS customer_first,
+                       COALESCE(c.{customer_last_col}, '') AS customer_last,
+                       (
+                           SELECT GROUP_CONCAT(CONCAT(si.{sale_item_qty}, 'x ', p.{product_name_col}) SEPARATOR ', ')
+                           FROM sale_items si
+                           JOIN products p ON si.{sale_item_product_fk} = p.{product_id_col}
+                           WHERE si.{sale_item_sale_fk} = s.{sale_id_col}
+                       ) AS items
                 FROM sales s
-                LEFT JOIN customers c ON s.customer_id = c.id
+                LEFT JOIN customers c ON s.{customer_fk_col} = c.{customer_pk_col}
                 {where_clause}
-                ORDER BY s.sale_date DESC
+                ORDER BY s.{sale_date_col} DESC
             """
             
             cursor.execute(query, params)
@@ -1644,19 +1869,29 @@ class AdminDashboard(BaseDashboard):
                 sale_date = sale['sale_date']
                 if isinstance(sale_date, str):
                     sale_date_str = sale_date
-                else:
+                elif sale_date is not None:
                     sale_date_str = sale_date.strftime("%Y-%m-%d %H:%M:%S")
+                else:
+                    sale_date_str = "N/A"
+                
+                payment_method = sale.get('payment_method') or 'Unknown'
+                if isinstance(payment_method, str):
+                    payment_display = payment_method.title()
+                else:
+                    payment_display = str(payment_method)
+                
+                total_amount = sale.get('total_amount') or 0
                 
                 self.sales_tree.insert(
                     "",
                     tk.END,
                     values=(
-                        sale['id'],
+                        sale['sale_id'],
                         sale_date_str,
                         customer_name,
-                        f"₱{sale['total_amount']:.2f}",
-                        sale['payment_method'].title(),
-                        sale['items'] or 'N/A'
+                        f"₱{total_amount:.2f}",
+                        payment_display,
+                        sale.get('items') or 'N/A'
                     )
                 )
             
@@ -1678,25 +1913,48 @@ class AdminDashboard(BaseDashboard):
         try:
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
+            schema = self._get_sales_schema()
+            sale_id_col = schema['sale_id']
+            sale_date_col = schema['sale_date']
+            total_amount_col = schema['total_amount']
+            payment_method_col = schema['payment_method']
+            customer_fk_col = schema['customer_fk']
+            customer_pk_col = schema['customer_pk']
+            customer_first_col = schema['customer_first']
+            customer_last_col = schema['customer_last']
+            sale_item_sale_fk = schema['sale_item_sale_fk']
+            sale_item_product_fk = schema['sale_item_product_fk']
+            sale_item_qty = schema['sale_item_qty']
+            sale_item_price = schema['sale_item_price']
+            product_schema = self._get_schema()
+            product_name_col = product_schema['prod_name']
+            product_id_col = product_schema['prod_id']
             
             # Get sale details
-            cursor.execute("""
-                SELECT s.*, 
-                       COALESCE(c.first_name, '') as customer_first,
-                       COALESCE(c.last_name, '') as customer_last
+            sale_query = f"""
+                SELECT s.{sale_id_col} AS sale_id,
+                       s.{sale_date_col} AS sale_date,
+                       s.{total_amount_col} AS total_amount,
+                       s.{payment_method_col} AS payment_method,
+                       COALESCE(c.{customer_first_col}, '') AS customer_first,
+                       COALESCE(c.{customer_last_col}, '') AS customer_last
                 FROM sales s
-                LEFT JOIN customers c ON s.customer_id = c.id
-                WHERE s.id = %s
-            """, (sale_id,))
+                LEFT JOIN customers c ON s.{customer_fk_col} = c.{customer_pk_col}
+                WHERE s.{sale_id_col} = %s
+            """
+            cursor.execute(sale_query, (sale_id,))
             sale = cursor.fetchone()
             
             # Get sale items
-            cursor.execute("""
-                SELECT si.*, p.name as product_name
+            items_query = f"""
+                SELECT si.{sale_item_qty} AS quantity,
+                       si.{sale_item_price} AS price,
+                       p.{product_name_col} AS product_name
                 FROM sale_items si
-                JOIN products p ON si.product_id = p.id
-                WHERE si.sale_id = %s
-            """, (sale_id,))
+                JOIN products p ON si.{sale_item_product_fk} = p.{product_id_col}
+                WHERE si.{sale_item_sale_fk} = %s
+            """
+            cursor.execute(items_query, (sale_id,))
             items = cursor.fetchall()
             
             cursor.close()
@@ -1734,12 +1992,20 @@ class AdminDashboard(BaseDashboard):
             ).pack(pady=20)
             
             # Sale info
+            payment_method = sale.get('payment_method') or 'Unknown'
+            if isinstance(payment_method, str):
+                payment_display = payment_method.title()
+            else:
+                payment_display = str(payment_method)
+            
+            total_amount = sale.get('total_amount') or 0
+            
             info_text = f"""
-Sale ID: {sale['id']}
+Sale ID: {sale['sale_id']}
 Date: {sale['sale_date']}
 Customer: {f"{sale['customer_first']} {sale['customer_last']}".strip() or 'Walk-in'}
-Payment Method: {sale['payment_method'].title()}
-Total Amount: ₱{sale['total_amount']:.2f}
+Payment Method: {payment_display}
+Total Amount: ₱{total_amount:.2f}
 
 Items:
 """
@@ -1756,7 +2022,11 @@ Items:
             # Items list
             items_text = ""
             for item in items:
-                items_text += f"  • {item['quantity']}x {item['product_name']} @ ₱{item['price']:.2f} = ₱{item['quantity'] * item['price']:.2f}\n"
+                quantity = item.get('quantity') or 0
+                price = item.get('price') or 0
+                items_text += (
+                    f"  • {quantity}x {item.get('product_name', 'Unknown')} @ ₱{price:.2f} = ₱{quantity * price:.2f}\n"
+                )
             
             items_label = tk.Label(
                 form_frame,
@@ -1808,9 +2078,11 @@ Items:
             try:
                 conn = get_db_connection()
                 cursor = conn.cursor()
+                schema = self._get_sales_schema()
+                sale_id_col = schema['sale_id']
                 
                 # Delete sale (cascade will delete sale_items)
-                cursor.execute("DELETE FROM sales WHERE id = %s", (sale_id,))
+                cursor.execute(f"DELETE FROM sales WHERE {sale_id_col} = %s", (sale_id,))
                 conn.commit()
                 
                 success = cursor.rowcount > 0

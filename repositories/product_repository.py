@@ -56,17 +56,30 @@ class ProductRepository:
         return products
 
     @staticmethod
-    def add_product(category_id: int, name: str, description: str, price: float, image_path: Optional[str] = None) -> bool:
+    def add_product(category_id: int, name: str, description: str,
+                   price_regular: float, price_large: float,
+                   image_path: Optional[str] = None) -> bool:
         """Add a new product"""
         try:
             connection = get_db_connection()
             cursor = connection.cursor()
             
             query = """
-            INSERT INTO products (category_id, name, description, price, image_path)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO products (category_id, name, description, price, price_regular, price_large, image_path)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
-            cursor.execute(query, (category_id, name, description, price, image_path))
+            cursor.execute(
+                query,
+                (
+                    category_id,
+                    name,
+                    description,
+                    price_regular,
+                    price_regular,
+                    price_large,
+                    image_path,
+                )
+            )
             connection.commit()
             
             success = True
@@ -84,7 +97,9 @@ class ProductRepository:
     @staticmethod
     def update_product(product_id: int, category_id: Optional[int] = None, 
                       name: Optional[str] = None, description: Optional[str] = None,
-                      price: Optional[float] = None, image_path: Optional[str] = None) -> bool:
+                      price: Optional[float] = None, price_regular: Optional[float] = None,
+                      price_large: Optional[float] = None,
+                      image_path: Optional[str] = None) -> bool:
         """Update an existing product"""
         try:
             connection = get_db_connection()
@@ -106,6 +121,15 @@ class ProductRepository:
             if price is not None:
                 update_fields.append("price = %s")
                 params.append(price)
+            if price_regular is not None:
+                update_fields.append("price_regular = %s")
+                params.append(price_regular)
+                if price is None:
+                    update_fields.append("price = %s")
+                    params.append(price_regular)
+            if price_large is not None:
+                update_fields.append("price_large = %s")
+                params.append(price_large)
             if image_path is not None:
                 update_fields.append("image_path = %s")
                 params.append(image_path)
