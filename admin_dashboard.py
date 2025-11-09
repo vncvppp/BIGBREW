@@ -2448,21 +2448,6 @@ class InventoryManagerDashboard(BaseDashboard):
         )
         alerts_btn.pack(expand=True, fill='both', padx=10, pady=10)
         
-        # Supplier Management
-        supplier_card = self.create_card(controls_frame, "Supplier Management", 1, 0)
-        supplier_btn = tk.Button(
-            supplier_card,
-            text="Manage Suppliers",
-            font=("Arial", 12),
-            bg=self.button_color,
-            fg=self.text_color,
-            relief='flat',
-            bd=0,
-            command=self.manage_suppliers,
-            height=2
-        )
-        supplier_btn.pack(expand=True, fill='both', padx=10, pady=10)
-        
         # Purchase Orders
         orders_card = self.create_card(controls_frame, "Purchase Orders", 1, 1)
         orders_btn = tk.Button(
@@ -2501,9 +2486,6 @@ class InventoryManagerDashboard(BaseDashboard):
         
     def view_alerts(self):
         messagebox.showinfo("Stock Alerts", "Stock alert system will be implemented here")
-        
-    def manage_suppliers(self):
-        messagebox.showinfo("Supplier Management", "Supplier management will be implemented here")
-        
+
     def manage_purchase_orders(self):
         messagebox.showinfo("Purchase Orders", "Purchase order management will be implemented here")

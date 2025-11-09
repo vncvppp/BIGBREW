@@ -233,9 +233,10 @@ def save_purchase_to_db(customer_id, total_amount, payment_method, items, user_i
             try:
                 cursor.execute("""
                     UPDATE inventory 
-                    SET quantity = GREATEST(0, quantity - %s) 
+                    SET quantity = GREATEST(0, quantity - %s),
+                        current_stock = GREATEST(0, current_stock - %s)
                     WHERE product_id = %s
-                """, (qty, product_id))
+                """, (qty, qty, product_id))
             except Exception:
                 # Don't fail whole transaction if inventory update is not possible
                 pass

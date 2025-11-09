@@ -67,11 +67,10 @@ def initialize_system_database():
         create_inventory_table(cursor)
         create_otp_verification_table(cursor)
         create_products_table(cursor)
-        create_purchases_table(cursor)
         create_sales_table(cursor)
         create_sale_items_table(cursor)
-        create_suppliers_table(cursor)
         create_users_table(cursor)
+        create_purchases_table(cursor)
         
         # Insert initial data
         insert_initial_data(cursor)
@@ -181,13 +180,11 @@ def create_purchases_table(cursor):
     create_table_sql = """
     CREATE TABLE IF NOT EXISTS purchases (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        supplier_id INT NOT NULL,
         product_id INT NOT NULL,
         quantity INT NOT NULL,
         unit_cost DECIMAL(10,2) NOT NULL,
         total_cost DECIMAL(10,2) NOT NULL,
         purchase_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE RESTRICT,
         FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """
@@ -244,21 +241,6 @@ def create_sale_items_table(cursor):
     print("✅ Sale items table created")
 
 
-
-def create_suppliers_table(cursor):
-    """Create suppliers table"""
-    create_table_sql = """
-    CREATE TABLE IF NOT EXISTS suppliers (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(100) NOT NULL,
-        contact_person VARCHAR(100),
-        email VARCHAR(100),
-        phone VARCHAR(20),
-        address TEXT
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    """
-    cursor.execute(create_table_sql)
-    print("✅ Suppliers table created")
 
 def create_users_table(cursor):
     """Create users table for staff accounts"""

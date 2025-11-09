@@ -90,31 +90,22 @@ class BigBrewApp:
     def setup_database(self):
         """Initialize database connection"""
         try:
+            # Always reset database on startup
+            from init_database import initialize_system_database
+            if APP_CONFIG.get('debug'):
+                print("↻ Resetting database to fresh state...")
+            if not initialize_system_database():
+                messagebox.showerror(
+                    "Database Error",
+                    "Failed to reinitialize database. Please check your MySQL server and try again."
+                )
+                self.root.quit()
+                return
+
+            # Connect to freshly initialized database
             self.db_connection = mysql.connector.connect(**DB_CONFIG)
             if self.db_connection.is_connected():
                 print("✓ Database connection established successfully")
-
-                # Test if database exists
-                try:
-                    cursor = self.db_connection.cursor()
-                    cursor.execute("USE {}".format(DB_CONFIG['database']))
-                    cursor.close()
-                except Error as e:
-                    if e.errno == 1049:  # Database doesn't exist
-                        response = messagebox.askyesno(
-                            "Database Setup",
-                            "Database not found. Would you like to initialize the database now?"
-                        )
-                        if response:
-                            self.initialize_database()
-                        else:
-                            messagebox.showinfo(
-                                "Information",
-                                "Please run init_database.py manually to set up the database."
-                            )
-                            self.root.quit()
-                    else:
-                        raise e
 
         except Error as e:
             error_msg = f"Failed to connect to database: {str(e)}"

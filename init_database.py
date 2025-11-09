@@ -68,11 +68,10 @@ def initialize_system_database():
         create_customers_table(cursor)
         create_inventory_table(cursor)
         create_otp_verification_table(cursor)
-        create_suppliers_table(cursor)
         create_purchases_table(cursor)
+        create_users_table(cursor)
         create_sales_table(cursor)
         create_sale_items_table(cursor)
-        create_users_table(cursor)
         
     # Remove this section as we now have the data insertion directly in this file
         
@@ -93,11 +92,13 @@ def initialize_system_database():
             connection.close()
 
 def create_categories_table(cursor):
-    """Create categories table for product categorization"""
+    """Create categories table with legacy-compatible structure"""
     create_table_sql = """
     CREATE TABLE IF NOT EXISTS categories (
         id INT AUTO_INCREMENT PRIMARY KEY,
+        category_id INT UNIQUE,
         name VARCHAR(100) NOT NULL,
+        category_name VARCHAR(100) NOT NULL,
         description TEXT
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """
@@ -109,10 +110,17 @@ def create_products_table(cursor):
     create_table_sql = """
     CREATE TABLE IF NOT EXISTS products (
         id INT AUTO_INCREMENT PRIMARY KEY,
+        product_id INT UNIQUE,
         category_id INT,
+        product_code VARCHAR(50),
         name VARCHAR(100) NOT NULL,
+        product_name VARCHAR(100),
         description TEXT,
-        price DECIMAL(10,2) NOT NULL,
+        cost_price DECIMAL(10,2) DEFAULT 0,
+        unit_price DECIMAL(10,2) DEFAULT 0,
+        price DECIMAL(10,2) DEFAULT 0,
+        price_regular DECIMAL(10,2) DEFAULT 0,
+        price_large DECIMAL(10,2) DEFAULT 0,
         image_path VARCHAR(255),
         FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
@@ -139,7 +147,11 @@ def create_inventory_table(cursor):
     create_table_sql = """
     CREATE TABLE IF NOT EXISTS inventory (
         id INT AUTO_INCREMENT PRIMARY KEY,
+        inventory_id INT UNIQUE,
         product_id INT NOT NULL,
+        current_stock INT NOT NULL DEFAULT 0,
+        minimum_stock INT NOT NULL DEFAULT 0,
+        reorder_point INT NOT NULL DEFAULT 0,
         quantity INT NOT NULL DEFAULT 0,
         FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
@@ -166,13 +178,11 @@ def create_purchases_table(cursor):
     create_table_sql = """
     CREATE TABLE IF NOT EXISTS purchases (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        supplier_id INT NOT NULL,
         product_id INT NOT NULL,
         quantity INT NOT NULL,
         unit_cost DECIMAL(10,2) NOT NULL,
         total_cost DECIMAL(10,2) NOT NULL,
         purchase_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE RESTRICT,
         FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """
@@ -185,10 +195,12 @@ def create_sales_table(cursor):
     CREATE TABLE IF NOT EXISTS sales (
         id INT AUTO_INCREMENT PRIMARY KEY,
         customer_id INT NULL,
+        user_id INT NULL,
         total_amount DECIMAL(10,2) NOT NULL,
         payment_method ENUM('cash', 'card') DEFAULT 'cash',
         sale_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
+        FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
+        FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """
     cursor.execute(create_table_sql)
@@ -211,30 +223,21 @@ def create_sale_items_table(cursor):
     cursor.execute(create_table_sql)
     print("✅ Sale items table created")
 
-def create_suppliers_table(cursor):
-    """Create suppliers table"""
-    create_table_sql = """
-    CREATE TABLE IF NOT EXISTS suppliers (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(100) NOT NULL,
-        contact_person VARCHAR(100),
-        email VARCHAR(100),
-        phone VARCHAR(20),
-        address TEXT
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    """
-    cursor.execute(create_table_sql)
-    print("✅ Suppliers table created")
-
 def create_users_table(cursor):
     """Create users table for staff accounts"""
     create_table_sql = """
     CREATE TABLE IF NOT EXISTS users (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        username VARCHAR(50) NOT NULL,
-        email VARCHAR(100) NOT NULL,
-        password VARCHAR(255) NOT NULL,
-        role ENUM('admin', 'staff') NOT NULL DEFAULT 'staff'
+        user_id INT AUTO_INCREMENT PRIMARY KEY,
+        username VARCHAR(50) NOT NULL UNIQUE,
+        email VARCHAR(100) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        user_type ENUM('admin', 'staff', 'inventory_manager') NOT NULL DEFAULT 'staff',
+        first_name VARCHAR(100),
+        last_name VARCHAR(100),
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        last_login TIMESTAMP NULL DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """
     cursor.execute(create_table_sql)
@@ -245,71 +248,114 @@ def create_users_table(cursor):
     from hashlib import sha256
     admin_password = sha256("admin123".encode()).hexdigest()
     cursor.execute("""
-        INSERT IGNORE INTO users (username, email, password, role)
-        VALUES (%s, %s, %s, %s)
-    """, ('admin', 'admin@bigbrew.com', admin_password, 'admin'))
+        INSERT INTO users (username, email, password_hash, user_type, first_name, last_name, is_active)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+            password_hash = VALUES(password_hash),
+            user_type = VALUES(user_type),
+            is_active = VALUES(is_active)
+    """, ('admin', 'admin@bigbrew.com', admin_password, 'admin', 'Admin', 'User', 1))
     
-    # Insert default categories
+    # Insert default categories (matching db_init_products.sql)
     categories = [
-        ('Coffee', 'Hot and iced coffee beverages'),
-        ('Milk Tea', 'Fresh milk tea varieties'),
-        ('Fruit Tea', 'Refreshing fruit-based teas'),
-        ('Praf', 'Premium beverages'),
-        ('Brosty', 'Blended and frozen drinks'),
-        ('Add-ons', 'Additional toppings and customizations')
-    ]
-    
-    for name, description in categories:
-        cursor.execute("""
-            INSERT INTO categories (name, description)
-            VALUES (%s, %s)
-        """, (name, description))
-    
-    # Insert default products
-    
-    # Coffee products
-    coffee_products = [
-        ('Americano', 'Classic American-style coffee', 1, 99.00),
-        ('Spanish Latte', 'Rich Spanish-style latte', 1, 119.00),
-        ('Caramel Macchiato', 'Sweet caramel coffee', 1, 129.00),
-        ('White Mocha', 'White chocolate mocha', 1, 139.00),
-        ('Vanilla Bean', 'Smooth vanilla flavored coffee', 1, 139.00),
-        ('Dark Mocha', 'Rich dark chocolate mocha', 1, 139.00),
-        ('Salted Caramel', 'Sweet and salty caramel coffee', 1, 139.00),
-        ('Vietnamese Latte', 'Traditional Vietnamese coffee', 1, 119.00)
-    ]
-    
-    for name, desc, cat_id, price in coffee_products:
-        cursor.execute("""
-            INSERT INTO products (name, description, category_id, price)
-            VALUES (%s, %s, %s, %s)
-        """, (name, desc, cat_id, price))
-
-    # Milk Tea products
-    milk_tea_products = [
-        ('Okinawa', 'Japanese-inspired milk tea', 2, 110.00),
-        ('Winter Melon', 'Refreshing melon milk tea', 2, 110.00),
-        ('Hokkaido', 'Rich Japanese-style milk tea', 2, 110.00),
-        ('Taro', 'Purple yam flavored milk tea', 2, 110.00),
-        ('Thailand', 'Thai-style milk tea', 2, 110.00),
-        ('Matcha', 'Green tea milk tea', 2, 110.00),
-        ('Cheesecake', 'Creamy cheesecake milk tea', 2, 110.00),
-        ('Chocolate', 'Rich chocolate milk tea', 2, 110.00),
-        ('Dark Chocolate', 'Premium dark chocolate milk tea', 2, 110.00),
-        ('Salted Caramel', 'Sweet and salty caramel milk tea', 2, 110.00)
+        (1, "Milk Tea", "milkTea", "Milk tea beverages"),
+        (2, "Praf", "praf", "PRAF beverages"),
+        (3, "Fruit Tea", "fruitTea", "Fruit tea beverages"),
+        (4, "Coffee", "coffee", "Coffee beverages"),
+        (5, "Brosty", "brosty", "Brosty beverages"),
+        (6, "Add-ons", "add-ons", "Additional toppings and add-ons"),
     ]
 
-    for name, desc, cat_id, price in milk_tea_products:
-        cursor.execute("""
-            INSERT INTO products (name, description, category_id, price)
-            VALUES (%s, %s, %s, %s)
-        """, (name, desc, cat_id, price))
+    for cid, display_name, slug, description in categories:
+        cursor.execute(
+            """
+            INSERT INTO categories (id, category_id, name, category_name, description)
+            VALUES (%s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                name = VALUES(name),
+                category_name = VALUES(category_name),
+                description = VALUES(description)
+            """,
+            (cid, cid, display_name, slug, description),
+        )
 
-    # Initialize inventory for all products
-    cursor.execute("""
-        INSERT INTO inventory (product_id, quantity)
-        SELECT id, 100 FROM products
-    """)
+    category_map = {slug: cid for cid, _, slug, _ in categories}
+
+    # Insert default products (matching db_init_products.sql content)
+    products = [
+        # Milk Tea
+        ("milkTea", "MT001", "Cookies n Cream", "Cookies and cream flavored milk tea", 25.00, 29.00),
+        ("milkTea", "MT002", "Okinawa", "Okinawa-style roasted milk tea", 25.00, 29.00),
+        ("milkTea", "MT003", "Dark Choco", "Dark chocolate milk tea", 25.00, 29.00),
+        ("milkTea", "MT004", "Matcha", "Japanese green tea with milk", 25.00, 29.00),
+        ("milkTea", "MT005", "Red Velvet", "Red velvet flavored milk tea", 25.00, 29.00),
+        ("milkTea", "MT006", "Winter Melon", "Winter melon milk tea", 25.00, 29.00),
+        ("milkTea", "MT007", "Cheesecake", "Cheesecake flavored milk tea", 25.00, 29.00),
+        ("milkTea", "MT008", "Chocolate", "Classic chocolate milk tea", 25.00, 29.00),
+        ("milkTea", "MT009", "Taro", "Taro flavored milk tea", 25.00, 29.00),
+        ("milkTea", "MT010", "Salted Caramel", "Salted caramel milk tea", 25.00, 29.00),
+        # Coffee
+        ("coffee", "CF001", "Brusko", "Strong brewed coffee", 25.00, 29.00),
+        ("coffee", "CF002", "Mocha", "Coffee with chocolate", 25.00, 29.00),
+        ("coffee", "CF003", "Macchiato", "Espresso with steamed milk", 25.00, 29.00),
+        ("coffee", "CF004", "Vanilla", "Coffee with vanilla flavoring", 25.00, 29.00),
+        ("coffee", "CF005", "Caramel", "Coffee with caramel flavoring", 25.00, 29.00),
+        ("coffee", "CF006", "Matcha", "Coffee with matcha green tea", 25.00, 29.00),
+        ("coffee", "CF007", "Fudge", "Coffee with chocolate fudge", 25.00, 29.00),
+        ("coffee", "CF008", "Spanish Latte", "Coffee with sweetened condensed milk", 25.00, 29.00),
+    ]
+
+    for idx, (category_slug, code, name, desc, cost_price, unit_price) in enumerate(products, start=1):
+        category_id = category_map.get(category_slug)
+        cursor.execute(
+            """
+            INSERT INTO products (
+                id, product_id, category_id, product_code,
+                name, product_name, description,
+                cost_price, unit_price, price, price_regular, price_large
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                category_id = VALUES(category_id),
+                name = VALUES(name),
+                product_name = VALUES(product_name),
+                description = VALUES(description),
+                cost_price = VALUES(cost_price),
+                unit_price = VALUES(unit_price),
+                price = VALUES(price),
+                price_regular = VALUES(price_regular),
+                price_large = VALUES(price_large)
+            """,
+            (
+                idx,
+                idx,
+                category_id,
+                code,
+                name,
+                name,
+                desc,
+                cost_price,
+                unit_price,
+                unit_price,
+                unit_price,
+                unit_price,
+            ),
+        )
+
+    # Initialize inventory for all products with default stock levels
+    for idx in range(1, len(products) + 1):
+        cursor.execute(
+            """
+            INSERT INTO inventory (id, inventory_id, product_id, current_stock, minimum_stock, reorder_point, quantity)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                current_stock = VALUES(current_stock),
+                minimum_stock = VALUES(minimum_stock),
+                reorder_point = VALUES(reorder_point),
+                quantity = VALUES(quantity)
+            """,
+            (idx, idx, idx, 100, 10, 20, 100),
+        )
     
     # Insert sample customers
     customers = [
@@ -323,12 +369,6 @@ def create_users_table(cursor):
             VALUES (%s, %s, %s, %s)
         """, (name, email, phone, address))
         
-    # Insert sample supplier
-    cursor.execute("""
-        INSERT INTO suppliers (name, contact_person, email, phone, address)
-        VALUES ('Coffee Bean Supply Co.', 'James Brown', 'james@supplierco.com', '09876543210', '789 Supply Street')
-    """)
-    
     print("✅ Initial data inserted successfully")
 
 def main():
