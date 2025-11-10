@@ -48,35 +48,34 @@ class InventoryManagementMixin:
 
             container = self.inventory_window
 
-        header_frame = tk.Frame(container, bg=self.bg_color, height=60)
-        header_frame.pack(fill="x", padx=20, pady=10)
-        header_frame.pack_propagate(False)
+        pad = 0 if embedded else 20
+        frame_bg = self.card_bg if embedded else self.bg_color
 
-        title_label = tk.Label(
-            header_frame,
-            text="Inventory Management - Stock Tracking",
-            font=("Arial", 18, "bold"),
-            bg=self.bg_color,
-            fg=self.accent_color,
-        )
-        title_label.pack(side="left")
+        main_frame = tk.Frame(container, bg=frame_bg, bd=0, highlightthickness=0)
+        main_frame.pack(fill="both", expand=True, padx=pad, pady=(pad, pad))
 
-        main_frame = tk.Frame(container, bg=self.bg_color)
-        main_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        if not embedded:
+            header_frame = tk.Frame(main_frame, bg=frame_bg, height=60)
+            header_frame.pack(fill="x", pady=(0, 8))
+            header_frame.pack_propagate(False)
 
-        list_frame = tk.Frame(main_frame, bg=self.card_bg, relief="raised", bd=2)
-        list_frame.pack(fill="both", expand=True, padx=2, pady=2)
+            title_label = tk.Label(
+                header_frame,
+                text="Inventory Management - Stock Tracking",
+                font=("Arial", 18, "bold"),
+                bg=frame_bg,
+                fg=self.accent_color,
+            )
+            title_label.pack(side="left")
 
-        tk.Label(
-            list_frame,
-            text="Current Stock Levels",
-            font=("Arial", 14, "bold"),
-            bg=self.card_bg,
-            fg="#4A3728",
-        ).pack(pady=10)
+        list_frame = tk.Frame(main_frame, bg=self.card_bg, relief="flat", bd=0)
+        list_frame.pack(fill="both", expand=True, padx=0, pady=0)
 
-        tree_frame = tk.Frame(list_frame, bg=self.card_bg)
-        tree_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        inner_wrapper = tk.Frame(list_frame, bg=self.card_bg, bd=0, highlightthickness=0)
+        inner_wrapper.pack(fill="both", expand=True, padx=0, pady=0)
+
+        tree_frame = tk.Frame(inner_wrapper, bg=self.card_bg, bd=0, highlightthickness=0)
+        tree_frame.pack(fill="both", expand=True, padx=0, pady=(0, 0))
 
         scrollbar_y = tk.Scrollbar(tree_frame, orient="vertical")
         scrollbar_x = tk.Scrollbar(tree_frame, orient="horizontal")
@@ -110,19 +109,19 @@ class InventoryManagementMixin:
         self.inventory_tree.heading("Status", text="Status")
 
         self.inventory_tree.column("ID", width=55, anchor="center", stretch=False)
-        self.inventory_tree.column("Product", width=210, anchor="w", stretch=False)
-        self.inventory_tree.column("Category", width=120, anchor="w", stretch=False)
-        self.inventory_tree.column("PriceRegular", width=110, anchor="center", stretch=False)
-        self.inventory_tree.column("PriceLarge", width=110, anchor="center", stretch=False)
-        self.inventory_tree.column("Current Stock", width=110, anchor="center", stretch=False)
-        self.inventory_tree.column("Status", width=110, anchor="center", stretch=True)
+        self.inventory_tree.column("Product", width=260, anchor="w", stretch=False)
+        self.inventory_tree.column("Category", width=140, anchor="w", stretch=False)
+        self.inventory_tree.column("PriceRegular", width=120, anchor="center", stretch=False)
+        self.inventory_tree.column("PriceLarge", width=120, anchor="center", stretch=False)
+        self.inventory_tree.column("Current Stock", width=120, anchor="center", stretch=False)
+        self.inventory_tree.column("Status", width=140, anchor="center", stretch=True)
 
         self.inventory_tree.pack(side="left", fill="both", expand=True)
         scrollbar_y.pack(side="right", fill="y")
         scrollbar_x.pack(side="bottom", fill="x")
 
-        button_frame = tk.Frame(list_frame, bg=self.card_bg)
-        button_frame.pack(fill="x", pady=10)
+        button_frame = tk.Frame(inner_wrapper, bg=self.card_bg, bd=0, highlightthickness=0)
+        button_frame.pack(fill="x", pady=(6, 8))
 
         update_stock_btn = tk.Button(
             button_frame,

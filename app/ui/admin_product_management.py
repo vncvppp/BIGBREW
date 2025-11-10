@@ -242,23 +242,16 @@ class ProductManagementMixin:
 
             container = self.product_window
 
-        pad = 12 if embedded else 20
+        pad = 0 if embedded else 0
+        frame_bg = self.card_bg if embedded else self.bg_color
 
-        header_frame = tk.Frame(container, bg=self.bg_color, height=60)
-        header_frame.pack(fill="x", padx=pad, pady=(pad, 8))
-        header_frame.pack_propagate(False)
+        main_frame = tk.Frame(container, bg=frame_bg, bd=0, highlightthickness=0)
+        main_frame.pack(fill="both", expand=True, padx=pad, pady=(pad, pad))
 
-        title_label = tk.Label(
-            header_frame,
-            text="Product Management",
-            font=("Arial", 18, "bold"),
-            bg=self.bg_color,
-            fg=self.accent_color,
-        )
-        title_label.pack(side="left")
-
-        add_btn = tk.Button(
-            header_frame,
+        top_bar = tk.Frame(main_frame, bg=frame_bg, bd=0, highlightthickness=0)
+        top_bar.pack(fill="x", pady=(0, 8))
+        tk.Button(
+            top_bar,
             text="➕ Add New Product",
             font=("Arial", 12, "bold"),
             bg="#28A745",
@@ -268,25 +261,16 @@ class ProductManagementMixin:
             command=self.add_product_window,
             padx=20,
             pady=5,
-        )
-        add_btn.pack(side="right", padx=(10, 0))
+        ).pack(side="right")
 
-        main_frame = tk.Frame(container, bg=self.bg_color)
-        main_frame.pack(fill="both", expand=True, padx=pad, pady=(0, pad))
+        list_frame = tk.Frame(main_frame, bg=self.card_bg, relief="flat", bd=0)
+        list_frame.pack(fill="both", expand=True, padx=0, pady=0)
 
-        list_frame = tk.Frame(main_frame, bg=self.card_bg, relief="raised", bd=2)
-        list_frame.pack(fill="both", expand=True, padx=2, pady=2)
+        inner_wrapper = tk.Frame(list_frame, bg=self.card_bg, bd=0, highlightthickness=0)
+        inner_wrapper.pack(fill="both", expand=True, padx=0, pady=(0, 0))
 
-        tk.Label(
-            list_frame,
-            text="Products List",
-            font=("Arial", 14, "bold"),
-            bg=self.card_bg,
-            fg="#4A3728",
-        ).pack(pady=10)
-
-        tree_frame = tk.Frame(list_frame, bg=self.card_bg)
-        tree_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        tree_frame = tk.Frame(inner_wrapper, bg=self.card_bg, bd=0, highlightthickness=0)
+        tree_frame.pack(fill="both", expand=True, padx=0, pady=(0, 0))
 
         scrollbar_y = tk.Scrollbar(tree_frame, orient="vertical")
         scrollbar_x = tk.Scrollbar(tree_frame, orient="horizontal")
@@ -325,14 +309,14 @@ class ProductManagementMixin:
         self.products_tree.column("Category", width=115, anchor="w", stretch=False)
         self.products_tree.column("PriceRegular", width=95, anchor="center", stretch=False)
         self.products_tree.column("PriceLarge", width=95, anchor="center", stretch=False)
-        self.products_tree.column("Description", width=280, anchor="w", stretch=True)
+        self.products_tree.column("Description", width=330, anchor="w", stretch=True)
 
         self.products_tree.pack(side="left", fill="both", expand=True)
         scrollbar_y.pack(side="right", fill="y")
         scrollbar_x.pack(side="bottom", fill="x")
 
-        button_frame = tk.Frame(list_frame, bg=self.card_bg)
-        button_frame.pack(fill="x", pady=10)
+        button_frame = tk.Frame(inner_wrapper, bg=self.card_bg, bd=0, highlightthickness=0)
+        button_frame.pack(fill="x", pady=(4, 6))
 
         edit_btn = tk.Button(
             button_frame,

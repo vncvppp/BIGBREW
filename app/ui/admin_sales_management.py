@@ -1,5 +1,9 @@
+import os
+import tempfile
 import tkinter as tk
+from pathlib import Path
 from tkinter import ttk, messagebox
+import webbrowser
 from app.db.connection import get_db_connection
 
 
@@ -122,6 +126,21 @@ class SalesManagementMixin:
             exact=("payment_method", "payment_type", "paymentmode"),
             contains=(("payment", "method"), ("payment", "type"), ("pay",),),
         )
+        proof_path = find_col(
+            sales_cols,
+            exact=("proof_of_payment_path", "receipt_path", "attachment_path"),
+            contains=(("proof", "path"), ("receipt", "path"), ("payment", "path")),
+        )
+        proof_blob = find_col(
+            sales_cols,
+            exact=("proof_of_payment_blob", "receipt_blob", "payment_blob"),
+            contains=(("proof", "blob"), ("payment", "blob")),
+        )
+        status_col = find_col(
+            sales_cols,
+            exact=("status",),
+            contains=(("status",),),
+        )
         customer_fk = find_col(
             sales_cols,
             exact=("customer_id", "client_id", "customer"),
@@ -181,6 +200,9 @@ class SalesManagementMixin:
             "sale_date": sale_date or "sale_date",
             "total_amount": total_amount or "total_amount",
             "payment_method": payment_method or "payment_method",
+            "proof_of_payment_path": proof_path,
+            "proof_of_payment_blob": proof_blob,
+            "status": status_col or "status",
             "customer_fk": customer_fk or "customer_id",
             "customer_pk": customer_id or "id",
             "customer_first": customer_first or "first_name",
@@ -218,20 +240,23 @@ class SalesManagementMixin:
 
             container = self.sales_window
 
-        header_frame = tk.Frame(container, bg=self.bg_color, height=60)
-        header_frame.pack(fill="x", padx=20, pady=10)
-        header_frame.pack_propagate(False)
+        pad = 0 if embedded else 0
+        frame_bg = self.card_bg if embedded else self.bg_color
 
-        title_label = tk.Label(
-            header_frame,
-            text="Sales Management - View and Manage Transactions",
-            font=("Arial", 18, "bold"),
-            bg=self.bg_color,
-            fg=self.accent_color,
-        )
-        title_label.pack(side="left")
+        top_frame = tk.Frame(container, bg=frame_bg, bd=0, highlightthickness=0)
+        top_frame.pack(fill="x", padx=pad, pady=(pad, 8))
 
-        filter_frame = tk.Frame(header_frame, bg=self.bg_color)
+        if not embedded:
+            title_label = tk.Label(
+                top_frame,
+                text="Sales Management - View and Manage Transactions",
+                font=("Arial", 18, "bold"),
+                bg=frame_bg,
+                fg=self.accent_color,
+            )
+            title_label.pack(side="left")
+
+        filter_frame = tk.Frame(top_frame, bg=frame_bg)
         filter_frame.pack(side="right")
 
         tk.Label(
@@ -253,29 +278,24 @@ class SalesManagementMixin:
         date_filter.pack(side="left", padx=5)
         date_filter.bind("<<ComboboxSelected>>", lambda e: self.refresh_sales_list())
 
-        main_frame = tk.Frame(container, bg=self.bg_color)
-        main_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        main_frame = tk.Frame(container, bg=frame_bg, bd=0, highlightthickness=0)
+        main_frame.pack(fill="both", expand=True, padx=pad, pady=(0 if embedded else pad, pad))
 
-        list_frame = tk.Frame(main_frame, bg=self.card_bg, relief="raised", bd=2)
-        list_frame.pack(fill="both", expand=True, padx=2, pady=2)
+        list_frame = tk.Frame(main_frame, bg=self.card_bg, relief="flat", bd=0)
+        list_frame.pack(fill="both", expand=True, padx=0, pady=0)
 
-        tk.Label(
-            list_frame,
-            text="Sales Transactions",
-            font=("Arial", 14, "bold"),
-            bg=self.card_bg,
-            fg="#4A3728",
-        ).pack(pady=10)
+        inner_wrapper = tk.Frame(list_frame, bg=self.card_bg, bd=0, highlightthickness=0)
+        inner_wrapper.pack(fill="both", expand=True, padx=0, pady=0)
 
-        tree_frame = tk.Frame(list_frame, bg=self.card_bg)
-        tree_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        tree_frame = tk.Frame(inner_wrapper, bg=self.card_bg, bd=0, highlightthickness=0)
+        tree_frame.pack(fill="both", expand=True, padx=0, pady=(0, 0))
 
         scrollbar_y = tk.Scrollbar(tree_frame, orient="vertical")
         scrollbar_x = tk.Scrollbar(tree_frame, orient="horizontal")
 
         self.sales_tree = ttk.Treeview(
             tree_frame,
-            columns=("ID", "Date", "Customer", "Total Amount", "Payment Method", "Items"),
+            columns=("ID", "Date", "Customer", "Total Amount", "Payment Method", "Status", "Items"),
             show="headings",
             yscrollcommand=scrollbar_y.set,
             xscrollcommand=scrollbar_x.set,
@@ -290,6 +310,7 @@ class SalesManagementMixin:
         self.sales_tree.heading("Customer", text="Customer")
         self.sales_tree.heading("Total Amount", text="Total (₱)")
         self.sales_tree.heading("Payment Method", text="Payment")
+        self.sales_tree.heading("Status", text="Status")
         self.sales_tree.heading("Items", text="Items")
 
         self.sales_tree.column("ID", width=60, anchor="center", stretch=False)
@@ -297,14 +318,15 @@ class SalesManagementMixin:
         self.sales_tree.column("Customer", width=140, anchor="w", stretch=False)
         self.sales_tree.column("Total Amount", width=95, anchor="center", stretch=False)
         self.sales_tree.column("Payment Method", width=95, anchor="center", stretch=False)
-        self.sales_tree.column("Items", width=280, anchor="w", stretch=True)
+        self.sales_tree.column("Status", width=95, anchor="center", stretch=False)
+        self.sales_tree.column("Items", width=3200, anchor="w", stretch=True)
 
         self.sales_tree.pack(side="left", fill="both", expand=True)
         scrollbar_y.pack(side="right", fill="y")
         scrollbar_x.pack(side="bottom", fill="x")
 
-        button_frame = tk.Frame(list_frame, bg=self.card_bg)
-        button_frame.pack(fill="x", pady=10)
+        button_frame = tk.Frame(inner_wrapper, bg=self.card_bg, bd=0, highlightthickness=0)
+        button_frame.pack(fill="x", pady=(6, 8))
 
         view_details_btn = tk.Button(
             button_frame,
@@ -348,6 +370,20 @@ class SalesManagementMixin:
         )
         refresh_sales_btn.pack(side="left", padx=5)
 
+        update_status_btn = tk.Button(
+            button_frame,
+            text="✅ Update Status",
+            font=("Arial", 11),
+            bg="#28A745",
+            fg="white",
+            relief="flat",
+            bd=0,
+            command=self.update_sale_status,
+            width=15,
+            padx=10,
+        )
+        update_status_btn.pack(side="left", padx=5)
+
         self.date_filter_var = date_filter_var
         self.refresh_sales_list()
 
@@ -372,6 +408,9 @@ class SalesManagementMixin:
             sale_date_col = schema["sale_date"]
             total_amount_col = schema["total_amount"]
             payment_method_col = schema["payment_method"]
+            proof_path_col = schema.get("proof_of_payment_path")
+            proof_blob_col = schema.get("proof_of_payment_blob")
+            status_col = schema.get("status")
             customer_fk_col = schema["customer_fk"]
             customer_pk_col = schema["customer_pk"]
             customer_first_col = schema["customer_first"]
@@ -408,6 +447,7 @@ class SalesManagementMixin:
                        s.{sale_date_col} AS sale_date,
                        s.{total_amount_col} AS total_amount,
                        s.{payment_method_col} AS payment_method,
+                       {('s.' + status_col) if status_col else "'pending'"} AS sale_status,
                        COALESCE(c.{customer_first_col}, '') AS customer_first,
                        COALESCE(c.{customer_last_col}, '') AS customer_last,
                        (
@@ -439,6 +479,8 @@ class SalesManagementMixin:
                 payment_display = payment_method.title() if isinstance(payment_method, str) else str(payment_method)
 
                 total_amount = sale.get("total_amount") or 0
+                status_value = sale.get("sale_status") or "pending"
+                status_display = status_value.title() if isinstance(status_value, str) else str(status_value)
 
                 tree.insert(
                     "",
@@ -449,6 +491,7 @@ class SalesManagementMixin:
                         customer_name,
                         f"₱{total_amount:.2f}",
                         payment_display,
+                        status_display,
                         sale.get("items") or "N/A",
                     ),
                 )
@@ -475,6 +518,9 @@ class SalesManagementMixin:
             sale_date_col = schema["sale_date"]
             total_amount_col = schema["total_amount"]
             payment_method_col = schema["payment_method"]
+            proof_path_col = schema.get("proof_of_payment_path")
+            proof_blob_col = schema.get("proof_of_payment_blob")
+            status_col = schema.get("status")
             customer_fk_col = schema["customer_fk"]
             customer_pk_col = schema["customer_pk"]
             customer_first_col = schema["customer_first"]
@@ -492,6 +538,9 @@ class SalesManagementMixin:
                        s.{sale_date_col} AS sale_date,
                        s.{total_amount_col} AS total_amount,
                        s.{payment_method_col} AS payment_method,
+                       {('s.' + proof_path_col) if proof_path_col else 'NULL'} AS proof_path,
+                       {('s.' + proof_blob_col) if proof_blob_col else 'NULL'} AS proof_blob,
+                       {('s.' + status_col) if status_col else "'pending'"} AS sale_status,
                        COALESCE(c.{customer_first_col}, '') AS customer_first,
                        COALESCE(c.{customer_last_col}, '') AS customer_last
                 FROM sales s
@@ -547,12 +596,21 @@ class SalesManagementMixin:
             payment_display = payment_method.title() if isinstance(payment_method, str) else str(payment_method)
 
             total_amount = sale.get("total_amount") or 0
+            sale_date_value = sale.get("sale_date")
+            if hasattr(sale_date_value, "strftime"):
+                sale_date_display = sale_date_value.strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                sale_date_display = str(sale_date_value or "N/A")
+
+            status_value = sale.get("sale_status") or "pending"
+            status_display = status_value.title() if isinstance(status_value, str) else str(status_value)
 
             info_text = f"""
 Sale ID: {sale['sale_id']}
-Date: {sale['sale_date']}
+Date: {sale_date_display}
 Customer: {f"{sale['customer_first']} {sale['customer_last']}".strip() or 'Walk-in'}
 Payment Method: {payment_display}
+Status: {status_display}
 Total Amount: ₱{total_amount:.2f}
 
 Items:
@@ -585,6 +643,22 @@ Items:
                 anchor="w",
             )
             items_label.pack(padx=20, pady=10, anchor="w")
+
+            proof_path = sale.get("proof_path")
+            proof_blob = sale.get("proof_blob")
+            if proof_path or proof_blob:
+                proof_btn = tk.Button(
+                    form_frame,
+                    text="View Proof of Payment",
+                    font=("Arial", 12),
+                    bg=self.button_color,
+                    fg=self.text_color,
+                    relief="flat",
+                    command=lambda: self._open_proof_of_payment(proof_path, proof_blob),
+                    width=20,
+                    padx=10,
+                )
+                proof_btn.pack(pady=(10, 5))
 
             close_btn = tk.Button(
                 form_frame,
@@ -640,5 +714,141 @@ Items:
             except Exception as exc:
                 messagebox.showerror("Error", f"Failed to delete sale: {exc}")
 
+    def update_sale_status(self):
+        selection = self.sales_tree.selection()
+        if not selection:
+            messagebox.showwarning("No Selection", "Please select a sale to update")
+            return
+
+        item = self.sales_tree.item(selection[0])
+        sale_id = item["values"][0]
+        current_status = (item["values"][5] or "Pending").lower()
+
+        status_window = tk.Toplevel(self.sales_window)
+        status_window.title("Update Sale Status")
+        status_window.configure(bg=self.bg_color)
+        status_window.resizable(False, False)
+
+        status_window.update_idletasks()
+        width, height = 320, 200
+        screen_width = status_window.winfo_screenwidth()
+        screen_height = status_window.winfo_screenheight()
+        x = (screen_width - width) // 2
+        y = (screen_height - height) // 2
+        status_window.geometry(f"{width}x{height}+{x}+{y}")
+
+        form_frame = tk.Frame(status_window, bg=self.card_bg, relief="raised", bd=2)
+        form_frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+        tk.Label(
+            form_frame,
+            text=f"Update Status for Sale #{sale_id}",
+            font=("Arial", 14, "bold"),
+            bg=self.card_bg,
+            fg="#4A3728",
+        ).pack(pady=(10, 15))
+
+        tk.Label(
+            form_frame,
+            text="Select new status:",
+            font=("Arial", 11),
+            bg=self.card_bg,
+            fg="#4A3728",
+        ).pack(anchor="w")
+
+        status_var = tk.StringVar(value=current_status.title())
+        status_combo = ttk.Combobox(
+            form_frame,
+            textvariable=status_var,
+            values=["Pending", "Paid", "Refunded", "Cancelled"],
+            state="readonly",
+            width=20,
+        )
+        status_combo.pack(pady=(0, 15))
+
+        def apply_status_update():
+            new_status = status_var.get().lower()
+            if new_status == current_status:
+                messagebox.showinfo("No Change", "Status is already set to the selected value.")
+                status_window.destroy()
+                return
+
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                schema = self._get_sales_schema()
+                sale_id_col = schema["sale_id"]
+                status_col = schema.get("status") or "status"
+                cursor.execute(
+                    f"UPDATE sales SET {status_col} = %s WHERE {sale_id_col} = %s",
+                    (new_status, sale_id),
+                )
+                conn.commit()
+                cursor.close()
+                conn.close()
+
+                messagebox.showinfo("Success", f"Sale #{sale_id} status updated to {new_status.title()}")
+                status_window.destroy()
+                self.refresh_sales_list()
+            except Exception as exc:
+                messagebox.showerror("Error", f"Failed to update status: {exc}")
+
+        button_container = tk.Frame(form_frame, bg=self.card_bg)
+        button_container.pack(pady=(5, 10))
+
+        tk.Button(
+            button_container,
+            text="Update",
+            font=("Arial", 11, "bold"),
+            bg="#28A745",
+            fg="white",
+            relief="flat",
+            width=10,
+            command=apply_status_update,
+        ).pack(side="left", padx=5)
+
+        tk.Button(
+            button_container,
+            text="Cancel",
+            font=("Arial", 11),
+            bg="#6C757D",
+            fg="white",
+            relief="flat",
+            width=10,
+            command=status_window.destroy,
+        ).pack(side="left", padx=5)
 
 
+
+
+    def _open_proof_of_payment(self, proof_path, proof_blob):
+        """Open proof of payment attachment if available."""
+        # Prefer existing file path
+        if proof_path:
+            try:
+                normalized = Path(proof_path).expanduser().resolve()
+                if normalized.exists():
+                    if os.name == "nt":
+                        os.startfile(normalized)  # nosec
+                    else:
+                        webbrowser.open(normalized.as_uri())
+                    return
+            except Exception:
+                pass
+
+        if proof_blob:
+            try:
+                suffix = Path(proof_path).suffix if proof_path else ".png"
+                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                    tmp.write(proof_blob)
+                    temp_path = Path(tmp.name)
+                if os.name == "nt":
+                    os.startfile(temp_path)  # nosec
+                else:
+                    webbrowser.open(temp_path.as_uri())
+                return
+            except Exception as exc:
+                messagebox.showerror("Proof of Payment", f"Unable to open attachment: {exc}")
+                return
+
+        messagebox.showinfo("Proof of Payment", "No proof of payment attachment is available for this sale.")

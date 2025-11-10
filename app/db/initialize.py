@@ -460,6 +460,8 @@ def create_sales_table(cursor: MySQLCursor):
         total_amount DECIMAL(10,2) NOT NULL,
         payment_method ENUM('cash', 'card', 'gcash') DEFAULT 'cash',
         proof_of_payment_path VARCHAR(255),
+        proof_of_payment_blob LONGBLOB,
+        status ENUM('pending','paid','refunded','cancelled') DEFAULT 'pending',
         sale_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE SET NULL,
         FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
@@ -491,6 +493,26 @@ def create_sales_table(cursor: MySQLCursor):
             """
             ALTER TABLE sales
             ADD COLUMN IF NOT EXISTS proof_of_payment_path VARCHAR(255)
+            """
+        )
+    except Error:
+        pass
+
+    try:
+        cursor.execute(
+            """
+            ALTER TABLE sales
+            ADD COLUMN IF NOT EXISTS proof_of_payment_blob LONGBLOB
+            """
+        )
+    except Error:
+        pass
+
+    try:
+        cursor.execute(
+            """
+            ALTER TABLE sales
+            ADD COLUMN IF NOT EXISTS status ENUM('pending','paid','refunded','cancelled') DEFAULT 'pending'
             """
         )
     except Error:

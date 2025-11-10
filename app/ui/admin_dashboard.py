@@ -1,13 +1,17 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, ttk
+
+import bcrypt
 
 try:
     from matplotlib.figure import Figure
     from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+    from matplotlib.ticker import FuncFormatter
 
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
+    FuncFormatter = None
 from app.ui.admin_product_management import ProductManagementMixin
 from app.ui.admin_inventory_management import InventoryManagementMixin
 from app.ui.admin_sales_management import SalesManagementMixin
@@ -268,51 +272,10 @@ class AdminDashboard(
         )
         self.detail_title.pack(fill='x')
         
-        self.detail_description = tk.Label(
-            self.detail_header_frame,
-            text=(
-                "Use the tools on the left to manage products, inventory, sales, "
-                "and reports. Selected tool details and shortcuts will appear here."
-            ),
-            font=("Arial", 12),
-            bg=self.card_bg,
-            fg="#5C4A3A",
-            anchor='w',
-            justify='left',
-            wraplength=540
-        )
-        self.detail_description.pack(fill='x', pady=(10, 0))
-        
-        self.detail_hint = tk.Label(
-            self.detail_header_frame,
-            text="Tip: Double-check inventory levels before publishing product updates.",
-            font=("Arial", 10, "italic"),
-            bg=self.card_bg,
-            fg="#7A6757",
-            anchor='w',
-            justify='left',
-            wraplength=540
-        )
-        self.detail_hint.pack(fill='x', pady=(10, 0))
+        self.detail_description = None
+        self.detail_hint = None
 
-        self.graph_button_frame = tk.Frame(self.detail_frame, bg=self.card_bg)
-        self.graph_button_frame.pack(fill='x', padx=30, pady=(0, 10))
-        self._add_graph_button(
-            "Sales Overview",
-            "Last 7 days of sales totals",
-            lambda: self._show_graph("sales")
-        )
-        self._add_graph_button(
-            "Inventory Levels",
-            "Top items by current stock",
-            lambda: self._show_graph("inventory")
-        )
-        self._add_graph_button(
-            "Top Products",
-            "Best-selling products",
-            lambda: self._show_graph("top_products")
-        )
-        
+        self.graph_button_frame = None
         self.detail_content_frame = tk.Frame(self.detail_frame, bg=self.card_bg)
         self.detail_content_frame.pack(fill='both', expand=True, padx=10, pady=12)
         
@@ -324,11 +287,8 @@ class AdminDashboard(
             title="Dashboard Overview",
             command=self._show_default_detail,
             detail_title="Dashboard Overview",
-            detail_description=(
-                "Monitor BigBrew at a glance. Explore sales, inventory, and product performance "
-                "graphs to stay ahead of daily operations."
-            ),
-            detail_hint="Use the buttons above to switch between dashboard charts.",
+            detail_description="",
+            detail_hint="",
             renderer=None,
         )
 
@@ -373,16 +333,16 @@ class AdminDashboard(
         
         self.create_sidebar_button(
             sidebar_frame,
-            title="Reports & Analytics",
-            command=self.view_reports,
-            detail_title="Reports & Analytics",
+            title="User Management",
+            command=self.manage_users,
+            detail_title="User Management",
             detail_description=(
-                "Explore sales trends, product performance, and inventory turnover to make "
-                "data-driven decisions."
+                "Add, edit, and deactivate staff accounts. Assign appropriate roles and reset credentials."
             ),
-            detail_hint="Compare month-over-month growth to track seasonal campaigns.",
-            renderer=None
+            detail_hint="Always enforce least-privilege access for security.",
+            renderer=lambda container: self.manage_users(parent=container)
         )
+        
 
     def create_sidebar_button(
         self,
@@ -419,82 +379,473 @@ class AdminDashboard(
         )
         button.pack(fill='x')
         
-    def _add_graph_button(self, title, tooltip, command):
-        """Create a graph selector button"""
-        container = tk.Frame(self.graph_button_frame, bg=self.card_bg)
-        container.pack(side='left', padx=(0, 18))
-
-        button = tk.Button(
-            container,
-            text=title,
-            font=("Arial", 11, "bold"),
-            bg=self.button_color,
-            fg=self.text_color,
-            relief='flat',
-            bd=0,
-            padx=16,
-            pady=8,
-            activebackground="#B45818",
-            activeforeground=self.text_color,
-            command=command,
-        )
-        button.pack(fill='x')
-        
-        hint = tk.Label(
-            container,
-            text=tooltip,
-            font=("Arial", 9),
-            bg=self.card_bg,
-            fg="#7A6757",
-            wraplength=140,
-            justify='center'
-        )
-        hint.pack(pady=(4, 0))
-
     def _clear_detail_content(self):
         """Remove existing widgets/graphs from the detail panel"""
-        if getattr(self, "graph_canvas", None):
+        for attr in ("graph_canvas", "user_panel", "info_panel"):
+            obj = getattr(self, attr, None)
+            if obj is None:
+                continue
             try:
-                self.graph_canvas.get_tk_widget().destroy()
+                widget = obj.get_tk_widget() if hasattr(obj, "get_tk_widget") else obj
+                widget.destroy()
             except Exception:
                 pass
-            self.graph_canvas = None
+            setattr(self, attr, None)
         for child in self.detail_content_frame.winfo_children():
             try:
                 child.destroy()
             except Exception:
                 pass
 
+    def manage_users(self, parent=None):
+        container = parent or self.detail_content_frame
+
+        self._clear_detail_content()
+
+        tree_container = tk.Frame(container, bg=self.card_bg)
+        tree_container.pack(fill='both', expand=True)
+
+        columns = ("username", "name", "email", "role", "status", "last_login")
+        self.user_tree = ttk.Treeview(
+            tree_container,
+            columns=columns,
+            show="headings",
+            height=12,
+        )
+
+        headings = {
+            "username": "Username",
+            "name": "Name",
+            "email": "Email",
+            "role": "Role",
+            "status": "Status",
+            "last_login": "Last Login",
+        }
+
+        for col, title in headings.items():
+            self.user_tree.heading(col, text=title)
+            anchor = "w" if col in ("username", "name", "email") else "center"
+            width = 180 if col == "email" else 140
+            if col == "last_login":
+                width = 160
+            self.user_tree.column(col, anchor=anchor, width=width)
+
+        self.user_tree.pack(side='left', fill='both', expand=True)
+
+        scrollbar = ttk.Scrollbar(tree_container, orient="vertical", command=self.user_tree.yview)
+        scrollbar.pack(side='right', fill='y')
+        self.user_tree.configure(yscrollcommand=scrollbar.set)
+
+        button_frame = tk.Frame(container, bg=self.card_bg)
+        button_frame.pack(fill='x', pady=(12, 0))
+
+        button_specs = [
+            ("▶", "Add User", "#28A745", "white", self._open_add_user_dialog),
+            ("✏️", "Edit User", self.button_color, self.text_color, self._open_edit_user_dialog),
+            ("🔐", "Reset Password", "#6C757D", "white", self._open_reset_password_dialog),
+            ("🔁", "Activate/Deactivate", "#DC3545", "white", self._toggle_user_status),
+        ]
+
+        for icon, label, bg_color, fg_color, command in button_specs:
+            btn = tk.Button(
+                button_frame,
+                text=f"{icon}  {label}",
+                font=("Arial", 11),
+                bg=bg_color,
+                fg=fg_color,
+                relief="flat",
+                width=18,
+                command=command,
+                padx=4,
+                pady=6,
+            )
+            btn.pack(side='left', padx=5)
+
+        tk.Button(
+            button_frame,
+            text="🔄  Refresh",
+            font=("Arial", 11),
+            bg="#6C757D",
+            fg="white",
+            relief="flat",
+            width=12,
+            command=self._refresh_user_list,
+            padx=4,
+            pady=6,
+        ).pack(side='right', padx=5)
+
+        self._user_records = {}
+        self._refresh_user_list()
+
+    def _get_app_connection(self):
+        getter = getattr(self.login_window, "get_db_connection", None)
+        if callable(getter):
+            return getter()
+        return None
+
+    def _load_users(self):
+        connection = self._get_app_connection()
+        if not connection:
+            messagebox.showerror("Database Error", "Unable to connect to the database.")
+            return []
+        cursor = None
+        try:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT user_id, username, email, user_type, first_name, last_name, is_active, last_login
+                FROM users
+                ORDER BY created_at DESC
+                """
+            )
+            return cursor.fetchall()
+        except Exception as exc:
+            messagebox.showerror("Database Error", f"Failed to load users: {exc}")
+            return []
+        finally:
+            if cursor:
+                cursor.close()
+
+    def _refresh_user_list(self):
+        if not hasattr(self, "user_tree"):
+            return
+        for item in self.user_tree.get_children():
+            self.user_tree.delete(item)
+
+        users = self._load_users()
+        self._user_records = {}
+        for user in users:
+            user_id = user["user_id"]
+            name = f"{user.get('first_name') or ''} {user.get('last_name') or ''}".strip() or "—"
+            status = "Active" if user.get("is_active") else "Inactive"
+            last_login = user.get("last_login")
+            if last_login and hasattr(last_login, "strftime"):
+                last_login = last_login.strftime("%Y-%m-%d %H:%M")
+            elif not last_login:
+                last_login = "—"
+            values = (
+                user.get("username") or "—",
+                name,
+                user.get("email") or "—",
+                user.get("user_type") or "—",
+                status,
+                last_login,
+            )
+            self.user_tree.insert("", tk.END, iid=str(user_id), values=values)
+            self._user_records[user_id] = user
+
+    def _get_selected_user(self):
+        if not hasattr(self, "user_tree"):
+            return None
+        selection = self.user_tree.selection()
+        if not selection:
+            messagebox.showwarning("No Selection", "Please select a user first.")
+            return None
+        user_id = int(selection[0])
+        return self._user_records.get(user_id)
+
+    def _open_add_user_dialog(self):
+        self._open_user_form_dialog("Add User")
+
+    def _open_edit_user_dialog(self):
+        user = self._get_selected_user()
+        if user:
+            self._open_user_form_dialog("Edit User", user)
+
+    def _open_user_form_dialog(self, title, user=None):
+        dialog = tk.Toplevel(self.window)
+        dialog.title(title)
+        dialog.configure(bg=self.card_bg)
+        dialog.resizable(False, False)
+        dialog.transient(self.window)
+        dialog.grab_set()
+
+        try:
+            dialog.update_idletasks()
+            width, height = 420, (380 if user else 450)
+            screen_width = dialog.winfo_screenwidth()
+            screen_height = dialog.winfo_screenheight()
+            x = (screen_width - width) // 2
+            y = (screen_height - height) // 2
+            dialog.geometry(f"{width}x{height}+{x}+{y}")
+        except Exception:
+            pass
+
+        form = tk.Frame(dialog, bg=self.card_bg)
+        form.pack(fill='both', expand=True, padx=20, pady=20)
+
+        entries = {}
+
+        def add_field(label, key, row, show=None):
+            tk.Label(
+                form, text=label, font=("Arial", 11), bg=self.card_bg, fg="#4A3728"
+            ).grid(row=row, column=0, sticky='w', pady=6)
+            entry = tk.Entry(form, font=("Arial", 11), show=show)
+            entry.grid(row=row, column=1, sticky='ew', pady=6)
+            entries[key] = entry
+
+        form.columnconfigure(1, weight=1)
+
+        add_field("Username:", "username", 0)
+        add_field("Email:", "email", 1)
+        add_field("First Name:", "first_name", 2)
+        add_field("Last Name:", "last_name", 3)
+
+        tk.Label(
+            form, text="Role:", font=("Arial", 11), bg=self.card_bg, fg="#4A3728"
+        ).grid(row=4, column=0, sticky='w', pady=6)
+        role_var = tk.StringVar(value="staff")
+        role_combo = ttk.Combobox(
+            form,
+            textvariable=role_var,
+            values=["admin", "staff", "inventory_manager"],
+            state="readonly",
+            font=("Arial", 11),
+        )
+        role_combo.grid(row=4, column=1, sticky='ew', pady=6)
+
+        if user is None:
+            add_field("Password:", "password", 5, show="*")
+            add_field("Confirm Password:", "confirm_password", 6, show="*")
+        else:
+            tk.Label(
+                form,
+                text="Use 'Reset Password' to update credentials.",
+                font=("Arial", 9, "italic"),
+                bg=self.card_bg,
+                fg="#7A6757",
+            ).grid(row=5, column=0, columnspan=2, sticky='w', pady=(8, 0))
+
+        if user:
+            entries["username"].insert(0, user.get("username") or "")
+            entries["email"].insert(0, user.get("email") or "")
+            entries["first_name"].insert(0, user.get("first_name") or "")
+            entries["last_name"].insert(0, user.get("last_name") or "")
+            role_var.set(user.get("user_type") or "staff")
+
+        def submit():
+            username = entries["username"].get().strip()
+            email = entries["email"].get().strip()
+            first_name = entries["first_name"].get().strip() or None
+            last_name = entries["last_name"].get().strip() or None
+            role = role_var.get()
+
+            if not username or not email:
+                messagebox.showerror("Validation Error", "Username and email are required.")
+                return
+
+            connection = self._get_app_connection()
+            if not connection:
+                messagebox.showerror("Database Error", "Unable to connect to the database.")
+                return
+
+            cursor = connection.cursor()
+            try:
+                if user is None:
+                    password = entries["password"].get()
+                    confirm_password = entries["confirm_password"].get()
+                    if len(password) < 6:
+                        messagebox.showerror("Validation Error", "Password must be at least 6 characters long.")
+                        return
+                    if password != confirm_password:
+                        messagebox.showerror("Validation Error", "Passwords do not match.")
+                        return
+                    password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+                    cursor.execute(
+                        """
+                        INSERT INTO users (username, email, password_hash, user_type, first_name, last_name, is_active)
+                        VALUES (%s, %s, %s, %s, %s, %s, 1)
+                        """,
+                        (username, email, password_hash, role, first_name, last_name),
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        UPDATE users
+                        SET username = %s,
+                            email = %s,
+                            user_type = %s,
+                            first_name = %s,
+                            last_name = %s
+                        WHERE user_id = %s
+                        """,
+                        (username, email, role, first_name, last_name, user["user_id"]),
+                    )
+                connection.commit()
+                messagebox.showinfo("Success", f"User {'created' if user is None else 'updated'} successfully.")
+                dialog.destroy()
+                self._refresh_user_list()
+            except Exception as exc:
+                connection.rollback()
+                messagebox.showerror("Database Error", f"Failed to save user: {exc}")
+            finally:
+                cursor.close()
+
+        button_row = tk.Frame(dialog, bg=self.card_bg)
+        button_row.pack(fill='x', padx=20, pady=(0, 15))
+
+        tk.Button(
+            button_row,
+            text="Save",
+            font=("Arial", 11, "bold"),
+            bg="#28A745",
+            fg="white",
+            relief="flat",
+            width=12,
+            command=submit,
+        ).pack(side='left', padx=5)
+
+        tk.Button(
+            button_row,
+            text="Cancel",
+            font=("Arial", 11),
+            bg="#6C757D",
+            fg="white",
+            relief="flat",
+            width=12,
+            command=dialog.destroy,
+        ).pack(side='right', padx=5)
+
+    def _toggle_user_status(self):
+        user = self._get_selected_user()
+        if not user:
+            return
+        new_status = 0 if user.get("is_active") else 1
+        action = "deactivate" if user.get("is_active") else "activate"
+
+        if not messagebox.askyesno("Confirm", f"Are you sure you want to {action} {user.get('username')}?"):
+            return
+
+        connection = self._get_app_connection()
+        if not connection:
+            messagebox.showerror("Database Error", "Unable to connect to the database.")
+            return
+        cursor = connection.cursor()
+        try:
+            cursor.execute(
+                "UPDATE users SET is_active = %s WHERE user_id = %s",
+                (new_status, user["user_id"]),
+            )
+            connection.commit()
+            messagebox.showinfo("Success", f"User has been {'deactivated' if new_status == 0 else 'activated'}.")
+            self._refresh_user_list()
+        except Exception as exc:
+            connection.rollback()
+            messagebox.showerror("Database Error", f"Failed to update status: {exc}")
+        finally:
+            cursor.close()
+
+    def _open_reset_password_dialog(self):
+        user = self._get_selected_user()
+        if not user:
+            return
+
+        dialog = tk.Toplevel(self.window)
+        dialog.title(f"Reset Password - {user.get('username')}")
+        dialog.configure(bg=self.card_bg)
+        dialog.resizable(False, False)
+        dialog.transient(self.window)
+        dialog.grab_set()
+
+        try:
+            dialog.update_idletasks()
+            width, height = 380, 240
+            screen_width = dialog.winfo_screenwidth()
+            screen_height = dialog.winfo_screenheight()
+            x = (screen_width - width) // 2
+            y = (screen_height - height) // 2
+            dialog.geometry(f"{width}x{height}+{x}+{y}")
+        except Exception:
+            pass
+
+        frame = tk.Frame(dialog, bg=self.card_bg)
+        frame.pack(fill='both', expand=True, padx=20, pady=20)
+
+        tk.Label(
+            frame,
+            text=f"Reset password for {user.get('username')}",
+            font=("Arial", 12, "bold"),
+            bg=self.card_bg,
+            fg="#4A3728",
+        ).pack(anchor='w', pady=(0, 12))
+
+        tk.Label(
+            frame, text="New Password:", font=("Arial", 11), bg=self.card_bg, fg="#4A3728"
+        ).pack(anchor='w')
+        password_entry = tk.Entry(frame, font=("Arial", 11), show="*")
+        password_entry.pack(fill='x', pady=(0, 10))
+
+        tk.Label(
+            frame, text="Confirm Password:", font=("Arial", 11), bg=self.card_bg, fg="#4A3728"
+        ).pack(anchor='w')
+        confirm_entry = tk.Entry(frame, font=("Arial", 11), show="*")
+        confirm_entry.pack(fill='x', pady=(0, 10))
+
+        def reset_password():
+            password = password_entry.get()
+            confirm_password = confirm_entry.get()
+            if len(password) < 6:
+                messagebox.showerror("Validation Error", "Password must be at least 6 characters long.")
+                return
+            if password != confirm_password:
+                messagebox.showerror("Validation Error", "Passwords do not match.")
+                return
+
+            connection = self._get_app_connection()
+            if not connection:
+                messagebox.showerror("Database Error", "Unable to connect to the database.")
+                return
+
+            cursor = connection.cursor()
+            try:
+                password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+                cursor.execute(
+                    "UPDATE users SET password_hash = %s WHERE user_id = %s",
+                    (password_hash, user["user_id"]),
+                )
+                connection.commit()
+                messagebox.showinfo("Success", "Password reset successfully.")
+                dialog.destroy()
+            except Exception as exc:
+                connection.rollback()
+                messagebox.showerror("Database Error", f"Failed to reset password: {exc}")
+            finally:
+                cursor.close()
+
+        button_bar = tk.Frame(dialog, bg=self.card_bg)
+        button_bar.pack(fill='x', padx=20, pady=(0, 15))
+
+        tk.Button(
+            button_bar,
+            text="Reset Password",
+            font=("Arial", 11, "bold"),
+            bg="#28A745",
+            fg="white",
+            relief="flat",
+            width=14,
+            command=reset_password,
+        ).pack(side='left', padx=5)
+
+        tk.Button(
+            button_bar,
+            text="Cancel",
+            font=("Arial", 11),
+            bg="#6C757D",
+            fg="white",
+            relief="flat",
+            width=12,
+            command=dialog.destroy,
+        ).pack(side='right', padx=5)
+
     def _show_default_detail(self):
         """Display the default welcome message in detail panel"""
-        self.detail_header_frame.pack(fill='x', padx=30, pady=(30, 10))
-        self.graph_button_frame.pack(fill='x', padx=30, pady=(0, 10))
-        self.detail_title.config(text="Welcome to the Administrator Dashboard")
-        self.detail_description.config(
-            text=(
-                "Use the tools on the left to manage products, inventory, sales, "
-                "and reports. Selected tool details and shortcuts will appear here."
-            )
-        )
-        self.detail_hint.config(
-            text="Tip: Double-check inventory levels before publishing product updates."
-        )
+        self.detail_title.config(text="Executive Overview")
         self._clear_detail_content()
         self.detail_content_frame.configure(bg=self.card_bg)
-        placeholder = tk.Label(
-            self.detail_content_frame,
-            text="Select a graph button above or choose a management module from the sidebar.",
-            font=("Arial", 12),
-            bg=self.card_bg,
-            fg="#5C4A3A",
-            anchor='center',
-            justify='center',
-            wraplength=520,
-        )
-        placeholder.pack(expand=True)
+        self._render_dashboard_overview()
 
-    def _show_graph(self, graph_type):
-        """Render a graph in the detail panel"""
+    def _build_chart_figure(self, graph_type):
+        """Build a matplotlib figure for the requested chart"""
         graph_meta = {
             "sales": {
                 "title": "Sales Overview",
@@ -526,48 +877,43 @@ class AdminDashboard(
         if not meta:
             return
 
-        self.detail_header_frame.pack(fill='x', padx=30, pady=(30, 10))
-        self.graph_button_frame.pack(fill='x', padx=30, pady=(0, 10))
-        self.detail_title.config(text=meta["title"])
-        self.detail_description.config(text=meta["description"])
-        self.detail_hint.config(text=meta["hint"])
-
-        self._clear_detail_content()
-        self.detail_content_frame.configure(bg=self.card_bg)
-
         data = self._get_graph_data(graph_type)
 
         if not MATPLOTLIB_AVAILABLE:
-            message = (
-                "Matplotlib is not installed. Please install it to view charts:\n"
-                "`pip install matplotlib`"
+            figure = Figure(figsize=(4.5, 3.0), dpi=100)
+            ax = figure.add_subplot(111)
+            ax.text(
+                0.5,
+                0.5,
+                "Matplotlib not installed.\nInstall with `pip install matplotlib`.",
+                ha="center",
+                va="center",
+                fontsize=10,
+                color="#7A6757",
             )
-            tk.Label(
-                self.detail_content_frame,
-                text=message,
-                font=("Arial", 11),
-                bg=self.card_bg,
-                fg="#7A6757",
-                justify='left',
-                wraplength=520,
-            ).pack(fill='both', expand=True, padx=10, pady=10)
-            return
+            ax.axis('off')
+            figure.patch.set_facecolor(self.card_bg)
+            return figure
 
-        if not data or not data["labels"]:
-            tk.Label(
-                self.detail_content_frame,
-                text="No data available yet for this chart.",
-                font=("Arial", 12, "italic"),
-                bg=self.card_bg,
-                fg="#7A6757",
-            ).pack(fill='both', expand=True, padx=10, pady=10)
-            return
-
-        figure = Figure(figsize=(5.6, 3.6), dpi=100)
+        figure = Figure(figsize=(4.5, 3.0), dpi=100)
         ax = figure.add_subplot(111)
 
-        labels = data["labels"]
-        values = data["values"]
+        labels = data.get("labels") if data else []
+        values = data.get("values") if data else []
+
+        if not labels:
+            ax.text(
+                0.5,
+                0.5,
+                "No data available yet for this chart.",
+                ha="center",
+                va="center",
+                fontsize=11,
+                color="#7A6757",
+            )
+            ax.axis('off')
+            figure.patch.set_facecolor(self.card_bg)
+            return figure
 
         x_positions = list(range(len(labels)))
 
@@ -576,17 +922,133 @@ class AdminDashboard(
         else:
             ax.bar(x_positions, values, color=meta["color"])
 
+        if graph_type == "sales" and FuncFormatter:
+            ax.yaxis.set_major_formatter(FuncFormatter(lambda val, _: f"₱{val:,.0f}"))
+
         ax.set_ylabel(meta["ylabel"])
         ax.set_xticks(x_positions)
-        ax.set_xticklabels(labels, rotation=25, ha='right')
+        ax.set_xticklabels(labels, rotation=90, ha='center')
         ax.grid(True, axis='y', linestyle='--', linewidth=0.5, alpha=0.5)
         ax.set_facecolor("#F8F1D4")
         figure.patch.set_facecolor(self.card_bg)
         figure.tight_layout()
 
-        self.graph_canvas = FigureCanvasTkAgg(figure, master=self.detail_content_frame)
-        self.graph_canvas.draw()
-        self.graph_canvas.get_tk_widget().pack(fill='both', expand=True)
+        return figure
+
+    def _calculate_summary_values(self):
+        sales_data = self._get_graph_data("sales") or {"values": []}
+        sales_values = sales_data.get("values", [])
+        total_sales = sum(sales_values)
+        avg_sales = total_sales / len(sales_values) if sales_values else 0.0
+
+        inventory_data = self._get_graph_data("inventory") or {"values": []}
+        inventory_values = inventory_data.get("values", [])
+        total_stock = sum(inventory_values) if inventory_values else 0.0
+
+        return total_sales, avg_sales, total_stock
+
+    def _calculate_summary_values(self):
+        sales_data = self._get_graph_data("sales") or {"values": []}
+        sales_values = sales_data.get("values", [])
+        total_sales = sum(sales_values)
+        avg_sales = total_sales / len(sales_values) if sales_values else 0.0
+
+        inventory_data = self._get_graph_data("inventory") or {"values": []}
+        inventory_values = inventory_data.get("values", [])
+        total_stock = sum(inventory_values) if inventory_values else 0.0
+
+        return total_sales, avg_sales, total_stock
+
+    def _render_dashboard_overview(self):
+        """Render all dashboard charts simultaneously."""
+        total_sales, avg_sales, total_stock = self._calculate_summary_values()
+
+        summary_frame = tk.Frame(self.detail_content_frame, bg=self.card_bg)
+        summary_frame.pack(fill='x', pady=(0, 12))
+
+        summary_specs = [
+            ("Total Sales (₱)", f"₱{total_sales:,.2f}"),
+            ("Average Daily Sales", f"₱{avg_sales:,.2f}"),
+            ("Total Stock On-hand", f"{total_stock:,.0f} units"),
+        ]
+
+        for idx, (title, value) in enumerate(summary_specs):
+            card = tk.Frame(summary_frame, bg="#FFF8DC", bd=1, relief='solid')
+            card.pack(side='left', expand=True, fill='both', padx=6)
+            tk.Label(
+                card, text=title, font=("Arial", 11, "bold"), bg="#FFF8DC", fg="#4A3728"
+            ).pack(anchor='w', padx=15, pady=(12, 4))
+            tk.Label(
+                card, text=value, font=("Arial", 16, "bold"), bg="#FFF8DC", fg="#B85C2D"
+            ).pack(anchor='w', padx=15, pady=(0, 12))
+
+        container = tk.Frame(self.detail_content_frame, bg=self.card_bg)
+        container.pack(fill='both', expand=True, padx=10, pady=(0, 10))
+
+        charts_frame = tk.Frame(self.detail_content_frame, bg=self.card_bg)
+        charts_frame.pack(fill='both', expand=True, padx=10, pady=(0, 10))
+        charts_frame.columnconfigure(0, weight=1)
+        charts_frame.columnconfigure(1, weight=1)
+        charts_frame.columnconfigure(2, weight=1)
+
+        sales_data = self._get_graph_data("sales") or {"values": []}
+        total_sales = sum(sales_data.get("values", []))
+        daily_count = len(sales_data.get("values", [])) or 1
+        avg_sales = total_sales / daily_count
+
+        inventory_data = self._get_graph_data("inventory") or {"values": []}
+        total_stock = sum(inventory_data.get("values", []))
+
+
+        chart_specs = [
+            ("Sales Trend", "sales"),
+            ("Inventory Health", "inventory"),
+            ("Top Selling Products", "top_products"),
+        ]
+
+        for idx, (title, key) in enumerate(chart_specs):
+            card = tk.Frame(charts_frame, bg="#FFF8DC", bd=1, relief='solid')
+            card.grid(row=0, column=idx, padx=6, pady=8, sticky='nsew')
+
+            tk.Label(
+                card, text=title, font=("Arial", 12, "bold"), bg="#FFF8DC", fg="#4A3728"
+            ).pack(anchor='w', padx=12, pady=(10, 5))
+
+            figure = self._build_chart_figure(key)
+            chart_canvas = FigureCanvasTkAgg(figure, master=card)
+            chart_canvas.draw()
+            chart_canvas.get_tk_widget().pack(fill='both', expand=True, padx=8, pady=8)
+
+        data = self._get_graph_data("top_products") or {"labels": [], "values": []}
+        labels = data.get("labels", [])
+        values = data.get("values", [])
+
+        table_frame = tk.Frame(self.detail_content_frame, bg=self.card_bg)
+        table_frame.pack(fill='x', pady=(0, 12))
+
+        tk.Label(
+            table_frame,
+            text="Top Products Snapshot",
+            font=("Arial", 12, "bold"),
+            bg=self.card_bg,
+            fg="#4A3728",
+        ).pack(anchor='w', pady=(0, 6))
+
+        summary_text = ""
+        if labels:
+            lines = [f"• {label}: {int(qty)} units sold" for label, qty in zip(labels, values)]
+            summary_text = "\n".join(lines)
+        else:
+            summary_text = "No sales data yet."
+
+        tk.Label(
+            table_frame,
+            text=summary_text,
+            font=("Arial", 11),
+            bg=self.card_bg,
+            fg="#5C4A3A",
+            justify='left',
+        ).pack(anchor='w')
 
     def _get_graph_data(self, graph_type):
         """Fetch data for the requested graph type"""
@@ -669,41 +1131,44 @@ class AdminDashboard(
 
     def _handle_sidebar_action(self, action, title, description, hint, renderer):
         """Run the selected action and update detail panel"""
-        if renderer:
+        header_packed = bool(self.detail_header_frame.winfo_manager())
+        if not header_packed or self.detail_header_frame.winfo_y() != 30:
             self.detail_header_frame.pack_forget()
-            self.graph_button_frame.pack_forget()
+            self.detail_header_frame.pack(fill='x', padx=30, pady=(30, 10))
+
+        if renderer:
+            self.detail_title.config(text=title)
             self._clear_detail_content()
-            self.detail_content_frame.configure(bg=self.bg_color)
+            self.detail_content_frame.configure(bg=self.card_bg)
             try:
                 renderer(self.detail_content_frame)
             except Exception as exc:
                 messagebox.showerror("Error", f"Failed to display {title}: {exc}")
                 self._show_default_detail()
         else:
-            self.detail_header_frame.pack(fill='x', padx=30, pady=(30, 10))
-            self.graph_button_frame.pack(fill='x', padx=30, pady=(0, 10))
             self.detail_title.config(text=title)
-            self.detail_description.config(text=description)
-            self.detail_hint.config(text=hint)
             self._clear_detail_content()
             self.detail_content_frame.configure(bg=self.card_bg)
+            info_message = description or ""
             if action:
                 try:
                     action()
                 except Exception as exc:
                     messagebox.showerror("Error", f"Failed to open {title}: {exc}")
+                else:
+                    if info_message:
+                        self._render_info_message(info_message)
+            else:
+                if info_message:
+                    self._render_info_message(info_message)
     
     # Sales management behavior provided by SalesManagementMixin.
     
     def view_reports(self):
-        """Open reports and analytics window"""
-        try:
-            from app.ui.reports import ReportsAnalytics
-            reports = ReportsAnalytics(self.window)
-        except ImportError:
-            messagebox.showerror("Error", "Reports module not available")
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to open reports: {e}")
+        messagebox.showinfo(
+            "Reports",
+            "Detailed reports are currently unavailable. Please contact the system administrator."
+        )
         
 
 class ManagerDashboard(BaseDashboard):
