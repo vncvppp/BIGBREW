@@ -217,27 +217,40 @@ class ProductManagementMixin:
     # ------------------------------------------------------------------
     # UI
     # ------------------------------------------------------------------
-    def manage_products(self):
-        self.product_window = tk.Toplevel(self.window)
-        self.product_window.title("Product Management - CRUD Operations")
-        self.product_window.geometry("1400x800")
-        self.product_window.configure(bg=self.bg_color)
+    def manage_products(self, parent=None):
+        embedded = parent is not None
 
-        self.product_window.update_idletasks()
-        width, height = 1400, 800
-        screen_width = self.product_window.winfo_screenwidth()
-        screen_height = self.product_window.winfo_screenheight()
-        x = (screen_width - width) // 2
-        y = (screen_height - height) // 2
-        self.product_window.geometry(f"{width}x{height}+{x}+{y}")
+        if embedded:
+            container = parent
+            for child in container.winfo_children():
+                child.destroy()
+            container.configure(bg=self.bg_color)
+            self.product_window = self.window
+        else:
+            self.product_window = tk.Toplevel(self.window)
+            self.product_window.title("Product Management")
+            self.product_window.geometry("1270x790")
+            self.product_window.configure(bg=self.bg_color)
 
-        header_frame = tk.Frame(self.product_window, bg=self.bg_color, height=60)
-        header_frame.pack(fill="x", padx=20, pady=10)
+            self.product_window.update_idletasks()
+            width, height = 1270, 790
+            screen_width = self.product_window.winfo_screenwidth()
+            screen_height = self.product_window.winfo_screenheight()
+            x = (screen_width - width) // 2
+            y = (screen_height - height) // 2
+            self.product_window.geometry(f"{width}x{height}+{x}+{y}")
+
+            container = self.product_window
+
+        pad = 12 if embedded else 20
+
+        header_frame = tk.Frame(container, bg=self.bg_color, height=60)
+        header_frame.pack(fill="x", padx=pad, pady=(pad, 8))
         header_frame.pack_propagate(False)
 
         title_label = tk.Label(
             header_frame,
-            text="Product Management - Add, Edit, Delete Products",
+            text="Product Management",
             font=("Arial", 18, "bold"),
             bg=self.bg_color,
             fg=self.accent_color,
@@ -258,11 +271,11 @@ class ProductManagementMixin:
         )
         add_btn.pack(side="right", padx=(10, 0))
 
-        main_frame = tk.Frame(self.product_window, bg=self.bg_color)
-        main_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        main_frame = tk.Frame(container, bg=self.bg_color)
+        main_frame.pack(fill="both", expand=True, padx=pad, pady=(0, pad))
 
         list_frame = tk.Frame(main_frame, bg=self.card_bg, relief="raised", bd=2)
-        list_frame.pack(fill="both", expand=True)
+        list_frame.pack(fill="both", expand=True, padx=2, pady=2)
 
         tk.Label(
             list_frame,
@@ -302,17 +315,17 @@ class ProductManagementMixin:
         self.products_tree.heading("Code", text="Product Code")
         self.products_tree.heading("Name", text="Product Name")
         self.products_tree.heading("Category", text="Category")
-        self.products_tree.heading("PriceRegular", text="Price Regular (₱)")
-        self.products_tree.heading("PriceLarge", text="Price Large (₱)")
+        self.products_tree.heading("PriceRegular", text="Price Reg (₱)")
+        self.products_tree.heading("PriceLarge", text="Price Lrg (₱)")
         self.products_tree.heading("Description", text="Description")
 
-        self.products_tree.column("ID", width=50, anchor="center")
-        self.products_tree.column("Code", width=120, anchor="w")
-        self.products_tree.column("Name", width=220, anchor="w")
-        self.products_tree.column("Category", width=140, anchor="w")
-        self.products_tree.column("PriceRegular", width=140, anchor="center")
-        self.products_tree.column("PriceLarge", width=140, anchor="center")
-        self.products_tree.column("Description", width=360, anchor="w")
+        self.products_tree.column("ID", width=55, anchor="center", stretch=False)
+        self.products_tree.column("Code", width=90, anchor="w", stretch=False)
+        self.products_tree.column("Name", width=190, anchor="w", stretch=False)
+        self.products_tree.column("Category", width=115, anchor="w", stretch=False)
+        self.products_tree.column("PriceRegular", width=95, anchor="center", stretch=False)
+        self.products_tree.column("PriceLarge", width=95, anchor="center", stretch=False)
+        self.products_tree.column("Description", width=280, anchor="w", stretch=True)
 
         self.products_tree.pack(side="left", fill="both", expand=True)
         scrollbar_y.pack(side="right", fill="y")
@@ -366,12 +379,21 @@ class ProductManagementMixin:
         self.refresh_products_list()
 
     def refresh_products_list(self):
-        for item in self.products_tree.get_children():
-            self.products_tree.delete(item)
+        tree = getattr(self, "products_tree", None)
+        if tree is None:
+            return
+        try:
+            if not tree.winfo_exists():
+                return
+        except tk.TclError:
+            return
+
+        for item in tree.get_children():
+            tree.delete(item)
 
         products = self._load_products()
         for product in products:
-            self.products_tree.insert(
+            tree.insert(
                 "",
                 tk.END,
                 values=(

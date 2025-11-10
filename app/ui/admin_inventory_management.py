@@ -10,34 +10,45 @@ class InventoryManagementMixin:
         ):
             self.refresh_inventory_list()
 
-    def manage_inventory(self):
-        self.inventory_window = tk.Toplevel(self.window)
-        self.inventory_window.title("Inventory Management")
-        self.inventory_window.geometry("1200x700")
-        self.inventory_window.configure(bg=self.bg_color)
+    def manage_inventory(self, parent=None):
+        embedded = parent is not None
 
-        def close_inventory():
-            try:
-                if getattr(self, "inventory_tree", None) is not None:
-                    self.inventory_tree = None
-            except Exception:
-                pass
-            win = getattr(self, "inventory_window", None)
-            if win is not None:
-                self.inventory_window = None
-                win.destroy()
+        if embedded:
+            container = parent
+            for child in container.winfo_children():
+                child.destroy()
+            container.configure(bg=self.bg_color)
+            self.inventory_window = self.window
+        else:
+            self.inventory_window = tk.Toplevel(self.window)
+            self.inventory_window.title("Inventory Management")
+            self.inventory_window.geometry("1200x700")
+            self.inventory_window.configure(bg=self.bg_color)
 
-        self.inventory_window.protocol("WM_DELETE_WINDOW", close_inventory)
+            def close_inventory():
+                try:
+                    if getattr(self, "inventory_tree", None) is not None:
+                        self.inventory_tree = None
+                except Exception:
+                    pass
+                win = getattr(self, "inventory_window", None)
+                if win is not None:
+                    self.inventory_window = None
+                    win.destroy()
 
-        self.inventory_window.update_idletasks()
-        width, height = 1200, 700
-        screen_width = self.inventory_window.winfo_screenwidth()
-        screen_height = self.inventory_window.winfo_screenheight()
-        x = (screen_width - width) // 2
-        y = (screen_height - height) // 2
-        self.inventory_window.geometry(f"{width}x{height}+{x}+{y}")
+            self.inventory_window.protocol("WM_DELETE_WINDOW", close_inventory)
 
-        header_frame = tk.Frame(self.inventory_window, bg=self.bg_color, height=60)
+            self.inventory_window.update_idletasks()
+            width, height = 1200, 700
+            screen_width = self.inventory_window.winfo_screenwidth()
+            screen_height = self.inventory_window.winfo_screenheight()
+            x = (screen_width - width) // 2
+            y = (screen_height - height) // 2
+            self.inventory_window.geometry(f"{width}x{height}+{x}+{y}")
+
+            container = self.inventory_window
+
+        header_frame = tk.Frame(container, bg=self.bg_color, height=60)
         header_frame.pack(fill="x", padx=20, pady=10)
         header_frame.pack_propagate(False)
 
@@ -50,11 +61,11 @@ class InventoryManagementMixin:
         )
         title_label.pack(side="left")
 
-        main_frame = tk.Frame(self.inventory_window, bg=self.bg_color)
+        main_frame = tk.Frame(container, bg=self.bg_color)
         main_frame.pack(fill="both", expand=True, padx=20, pady=10)
 
         list_frame = tk.Frame(main_frame, bg=self.card_bg, relief="raised", bd=2)
-        list_frame.pack(fill="both", expand=True)
+        list_frame.pack(fill="both", expand=True, padx=2, pady=2)
 
         tk.Label(
             list_frame,
@@ -93,18 +104,18 @@ class InventoryManagementMixin:
         self.inventory_tree.heading("ID", text="ID")
         self.inventory_tree.heading("Product", text="Product Name")
         self.inventory_tree.heading("Category", text="Category")
-        self.inventory_tree.heading("PriceRegular", text="Price Regular (₱)")
-        self.inventory_tree.heading("PriceLarge", text="Price Large (₱)")
+        self.inventory_tree.heading("PriceRegular", text="Price Reg (₱)")
+        self.inventory_tree.heading("PriceLarge", text="Price Lrg (₱)")
         self.inventory_tree.heading("Current Stock", text="Current Stock")
         self.inventory_tree.heading("Status", text="Status")
 
-        self.inventory_tree.column("ID", width=50, anchor="center")
-        self.inventory_tree.column("Product", width=230, anchor="w")
-        self.inventory_tree.column("Category", width=130, anchor="w")
-        self.inventory_tree.column("PriceRegular", width=140, anchor="center")
-        self.inventory_tree.column("PriceLarge", width=140, anchor="center")
-        self.inventory_tree.column("Current Stock", width=140, anchor="center")
-        self.inventory_tree.column("Status", width=130, anchor="center")
+        self.inventory_tree.column("ID", width=55, anchor="center", stretch=False)
+        self.inventory_tree.column("Product", width=210, anchor="w", stretch=False)
+        self.inventory_tree.column("Category", width=120, anchor="w", stretch=False)
+        self.inventory_tree.column("PriceRegular", width=110, anchor="center", stretch=False)
+        self.inventory_tree.column("PriceLarge", width=110, anchor="center", stretch=False)
+        self.inventory_tree.column("Current Stock", width=110, anchor="center", stretch=False)
+        self.inventory_tree.column("Status", width=110, anchor="center", stretch=True)
 
         self.inventory_tree.pack(side="left", fill="both", expand=True)
         scrollbar_y.pack(side="right", fill="y")

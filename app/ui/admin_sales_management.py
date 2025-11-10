@@ -193,21 +193,32 @@ class SalesManagementMixin:
             "product_id": product_id or "id",
         }
 
-    def manage_sales(self):
-        self.sales_window = tk.Toplevel(self.window)
-        self.sales_window.title("Sales Management")
-        self.sales_window.geometry("1400x800")
-        self.sales_window.configure(bg=self.bg_color)
+    def manage_sales(self, parent=None):
+        embedded = parent is not None
 
-        self.sales_window.update_idletasks()
-        width, height = 1400, 800
-        screen_width = self.sales_window.winfo_screenwidth()
-        screen_height = self.sales_window.winfo_screenheight()
-        x = (screen_width - width) // 2
-        y = (screen_height - height) // 2
-        self.sales_window.geometry(f"{width}x{height}+{x}+{y}")
+        if embedded:
+            container = parent
+            for child in container.winfo_children():
+                child.destroy()
+            container.configure(bg=self.bg_color)
+            self.sales_window = self.window
+        else:
+            self.sales_window = tk.Toplevel(self.window)
+            self.sales_window.title("Sales Management")
+            self.sales_window.geometry("1400x800")
+            self.sales_window.configure(bg=self.bg_color)
 
-        header_frame = tk.Frame(self.sales_window, bg=self.bg_color, height=60)
+            self.sales_window.update_idletasks()
+            width, height = 1400, 800
+            screen_width = self.sales_window.winfo_screenwidth()
+            screen_height = self.sales_window.winfo_screenheight()
+            x = (screen_width - width) // 2
+            y = (screen_height - height) // 2
+            self.sales_window.geometry(f"{width}x{height}+{x}+{y}")
+
+            container = self.sales_window
+
+        header_frame = tk.Frame(container, bg=self.bg_color, height=60)
         header_frame.pack(fill="x", padx=20, pady=10)
         header_frame.pack_propagate(False)
 
@@ -242,11 +253,11 @@ class SalesManagementMixin:
         date_filter.pack(side="left", padx=5)
         date_filter.bind("<<ComboboxSelected>>", lambda e: self.refresh_sales_list())
 
-        main_frame = tk.Frame(self.sales_window, bg=self.bg_color)
+        main_frame = tk.Frame(container, bg=self.bg_color)
         main_frame.pack(fill="both", expand=True, padx=20, pady=10)
 
         list_frame = tk.Frame(main_frame, bg=self.card_bg, relief="raised", bd=2)
-        list_frame.pack(fill="both", expand=True)
+        list_frame.pack(fill="both", expand=True, padx=2, pady=2)
 
         tk.Label(
             list_frame,
@@ -281,12 +292,12 @@ class SalesManagementMixin:
         self.sales_tree.heading("Payment Method", text="Payment")
         self.sales_tree.heading("Items", text="Items")
 
-        self.sales_tree.column("ID", width=80, anchor="center")
-        self.sales_tree.column("Date", width=180, anchor="w")
-        self.sales_tree.column("Customer", width=200, anchor="w")
-        self.sales_tree.column("Total Amount", width=120, anchor="center")
-        self.sales_tree.column("Payment Method", width=120, anchor="center")
-        self.sales_tree.column("Items", width=300, anchor="w")
+        self.sales_tree.column("ID", width=60, anchor="center", stretch=False)
+        self.sales_tree.column("Date", width=155, anchor="w", stretch=False)
+        self.sales_tree.column("Customer", width=140, anchor="w", stretch=False)
+        self.sales_tree.column("Total Amount", width=95, anchor="center", stretch=False)
+        self.sales_tree.column("Payment Method", width=95, anchor="center", stretch=False)
+        self.sales_tree.column("Items", width=280, anchor="w", stretch=True)
 
         self.sales_tree.pack(side="left", fill="both", expand=True)
         scrollbar_y.pack(side="right", fill="y")
@@ -341,8 +352,17 @@ class SalesManagementMixin:
         self.refresh_sales_list()
 
     def refresh_sales_list(self):
-        for item in self.sales_tree.get_children():
-            self.sales_tree.delete(item)
+        tree = getattr(self, "sales_tree", None)
+        if tree is None:
+            return
+        try:
+            if not tree.winfo_exists():
+                return
+        except tk.TclError:
+            return
+
+        for item in tree.get_children():
+            tree.delete(item)
 
         try:
             conn = get_db_connection()
@@ -420,7 +440,7 @@ class SalesManagementMixin:
 
                 total_amount = sale.get("total_amount") or 0
 
-                self.sales_tree.insert(
+                tree.insert(
                     "",
                     tk.END,
                     values=(

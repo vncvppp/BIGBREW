@@ -1,5 +1,13 @@
 import tkinter as tk
 from tkinter import messagebox
+
+try:
+    from matplotlib.figure import Figure
+    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
 from app.ui.admin_product_management import ProductManagementMixin
 from app.ui.admin_inventory_management import InventoryManagementMixin
 from app.ui.admin_sales_management import SalesManagementMixin
@@ -36,12 +44,12 @@ class BaseDashboard:
         self.login_window = login_window
         self.window = tk.Toplevel()
         self.window.title(f"BigBrew - {self.get_role_title()}")
-        self.window.geometry("1000x700")
+        self.window.geometry("1270x790")
         self.window.resizable(True, True)
         # Center the dashboard on screen
         try:
             self.window.update_idletasks()
-            width, height = 1000, 700
+            width, height = 1270, 790
             screen_width = self.window.winfo_screenwidth()
             screen_height = self.window.winfo_screenheight()
             x = (screen_width - width) // 2
@@ -65,6 +73,7 @@ class BaseDashboard:
         self.button_color = "#D2691E"
         
         self.window.configure(bg=self.bg_color)
+        self.graph_canvas = None
         self.setup_ui()
         
         # Handle window close
@@ -222,135 +231,467 @@ class AdminDashboard(
         super().__init__(user_data, login_window)
 
     def create_main_content(self):
-        """Create admin-specific content with CRUD operations"""
+        """Create admin-specific content with sidebar navigation"""
         content_frame = tk.Frame(self.window, bg=self.bg_color)
         content_frame.pack(fill='both', expand=True, padx=20, pady=10)
         
-        # Admin controls grid
-        controls_frame = tk.Frame(content_frame, bg=self.bg_color)
-        controls_frame.pack(fill='both', expand=True)
+        # Sidebar for primary actions
+        sidebar_frame = tk.Frame(content_frame, bg="#3B2A1F", width=220)
+        sidebar_frame.pack(side='left', fill='y', padx=(0, 15))
+        sidebar_frame.pack_propagate(False)
         
-        # Product Management (CRUD)
-        product_card = self.create_card(controls_frame, "Product Management", 0, 0)
-        product_btn = tk.Button(
-            product_card,
-            text="Manage Products",
-            font=("Arial", 12),
-            bg=self.button_color,
-            fg=self.text_color,
-            relief='flat',
-            bd=0,
-            command=self.manage_products,
-            height=2
-        )
-        product_btn.pack(expand=True, fill='both', padx=10, pady=10)
-        
-        # Add product summary
-        product_summary = tk.Label(
-            product_card,
-            text="Add, Edit, Delete\nmilk tea flavors & menu items",
-            font=("Arial", 9),
-            bg=self.card_bg,
-            fg="#666666",
-            justify='center'
-        )
-        product_summary.pack(pady=(0, 10))
-        
-        # Inventory Management
-        inventory_card = self.create_card(controls_frame, "Inventory Management", 0, 1)
-        inventory_btn = tk.Button(
-            inventory_card,
-            text="Manage Inventory",
-            font=("Arial", 12),
-            bg=self.button_color,
-            fg=self.text_color,
-            relief='flat',
-            bd=0,
-            command=self.manage_inventory,
-            height=2
-        )
-        inventory_btn.pack(expand=True, fill='both', padx=10, pady=10)
-        
-        # Add inventory summary
-        inventory_summary = tk.Label(
-            inventory_card,
-            text="Track and update\nremaining stock levels",
-            font=("Arial", 9),
-            bg=self.card_bg,
-            fg="#666666",
-            justify='center'
-        )
-        inventory_summary.pack(pady=(0, 10))
-        
-        # Sales Management
-        sales_card = self.create_card(controls_frame, "Sales Management", 1, 0)
-        sales_btn = tk.Button(
-            sales_card,
-            text="Manage Sales",
-            font=("Arial", 12),
-            bg=self.button_color,
-            fg=self.text_color,
-            relief='flat',
-            bd=0,
-            command=self.manage_sales,
-            height=2
-        )
-        sales_btn.pack(expand=True, fill='both', padx=10, pady=10)
-        
-        # Add sales summary
-        sales_summary = tk.Label(
-            sales_card,
-            text="View, filter, and manage\nsales transactions",
-            font=("Arial", 9),
-            bg=self.card_bg,
-            fg="#666666",
-            justify='center'
-        )
-        sales_summary.pack(pady=(0, 10))
-        
-        # Reports & Analytics
-        reports_card = self.create_card(controls_frame, "Reports & Analytics", 1, 1)
-        reports_btn = tk.Button(
-            reports_card,
-            text="View Reports",
-            font=("Arial", 12),
-            bg=self.button_color,
-            fg=self.text_color,
-            relief='flat',
-            bd=0,
-            command=self.view_reports,
-            height=2
-        )
-        reports_btn.pack(expand=True, fill='both', padx=10, pady=10)
-        
-        # Add reports summary
-        reports_summary = tk.Label(
-            reports_card,
-            text="Sales analytics, inventory\nreports, and insights",
-            font=("Arial", 9),
-            bg=self.card_bg,
-            fg="#666666",
-            justify='center'
-        )
-        reports_summary.pack(pady=(0, 10))
-        
-    def create_card(self, parent, title, row, col):
-        """Create a dashboard card"""
-        card = tk.Frame(parent, bg=self.card_bg, relief='raised', bd=2)
-        card.grid(row=row, column=col, padx=10, pady=10, sticky='nsew')
-        parent.grid_rowconfigure(row, weight=1)
-        parent.grid_columnconfigure(col, weight=1)
-        
-        title_label = tk.Label(
-            card,
-            text=title,
+        sidebar_title = tk.Label(
+            sidebar_frame,
+            text="Admin Tools",
             font=("Arial", 14, "bold"),
-            bg=self.card_bg,
-            fg="#4A3728"
+            bg="#3B2A1F",
+            fg=self.accent_color
         )
-        title_label.pack(pady=(10, 5))
+        sidebar_title.pack(anchor='w', padx=20, pady=(20, 10))
         
-        return card
+        # Content area on the right
+        self.detail_frame = tk.Frame(content_frame, bg=self.card_bg)
+        self.detail_frame.pack(side='left', fill='both', expand=True)
+        
+        self.detail_header_frame = tk.Frame(self.detail_frame, bg=self.card_bg)
+        self.detail_header_frame.pack(fill='x', padx=30, pady=(30, 10))
+        
+        self.detail_title = tk.Label(
+            self.detail_header_frame,
+            text="Welcome to the Administrator Dashboard",
+            font=("Arial", 18, "bold"),
+            bg=self.card_bg,
+            fg="#4A3728",
+            anchor='w',
+            justify='left',
+            wraplength=520
+        )
+        self.detail_title.pack(fill='x')
+        
+        self.detail_description = tk.Label(
+            self.detail_header_frame,
+            text=(
+                "Use the tools on the left to manage products, inventory, sales, "
+                "and reports. Selected tool details and shortcuts will appear here."
+            ),
+            font=("Arial", 12),
+            bg=self.card_bg,
+            fg="#5C4A3A",
+            anchor='w',
+            justify='left',
+            wraplength=540
+        )
+        self.detail_description.pack(fill='x', pady=(10, 0))
+        
+        self.detail_hint = tk.Label(
+            self.detail_header_frame,
+            text="Tip: Double-check inventory levels before publishing product updates.",
+            font=("Arial", 10, "italic"),
+            bg=self.card_bg,
+            fg="#7A6757",
+            anchor='w',
+            justify='left',
+            wraplength=540
+        )
+        self.detail_hint.pack(fill='x', pady=(10, 0))
+
+        self.graph_button_frame = tk.Frame(self.detail_frame, bg=self.card_bg)
+        self.graph_button_frame.pack(fill='x', padx=30, pady=(0, 10))
+        self._add_graph_button(
+            "Sales Overview",
+            "Last 7 days of sales totals",
+            lambda: self._show_graph("sales")
+        )
+        self._add_graph_button(
+            "Inventory Levels",
+            "Top items by current stock",
+            lambda: self._show_graph("inventory")
+        )
+        self._add_graph_button(
+            "Top Products",
+            "Best-selling products",
+            lambda: self._show_graph("top_products")
+        )
+        
+        self.detail_content_frame = tk.Frame(self.detail_frame, bg=self.card_bg)
+        self.detail_content_frame.pack(fill='both', expand=True, padx=10, pady=12)
+        
+        self._show_default_detail()
+        
+        # Sidebar navigation buttons
+        self.create_sidebar_button(
+            sidebar_frame,
+            title="Dashboard Overview",
+            command=self._show_default_detail,
+            detail_title="Dashboard Overview",
+            detail_description=(
+                "Monitor BigBrew at a glance. Explore sales, inventory, and product performance "
+                "graphs to stay ahead of daily operations."
+            ),
+            detail_hint="Use the buttons above to switch between dashboard charts.",
+            renderer=None,
+        )
+
+        self.create_sidebar_button(
+            sidebar_frame,
+            title="Product Management",
+            command=self.manage_products,
+            detail_title="Product Management",
+            detail_description=(
+                "Maintain the BigBrew catalog. Update pricing, descriptions, and availability "
+                "for milk tea flavors and specialty coffee drinks."
+            ),
+            detail_hint="Remember to sync changes with inventory to avoid stock mismatches.",
+            renderer=lambda container: self.manage_products(parent=container)
+        )
+        
+        self.create_sidebar_button(
+            sidebar_frame,
+            title="Inventory Management",
+            command=self.manage_inventory,
+            detail_title="Inventory Management",
+            detail_description=(
+                "Monitor ingredient availability, receive deliveries, and configure low-stock "
+                "alerts to keep operations running smoothly."
+            ),
+            detail_hint="Review weekly usage trends before ordering new supplies.",
+            renderer=lambda container: self.manage_inventory(parent=container)
+        )
+        
+        self.create_sidebar_button(
+            sidebar_frame,
+            title="Sales Management",
+            command=self.manage_sales,
+            detail_title="Sales Management",
+            detail_description=(
+                "Analyze daily sales, process adjustments, and review payment summaries "
+                "for comprehensive oversight."
+            ),
+            detail_hint="Export a CSV summary for accounting every Friday.",
+            renderer=lambda container: self.manage_sales(parent=container)
+        )
+        
+        self.create_sidebar_button(
+            sidebar_frame,
+            title="Reports & Analytics",
+            command=self.view_reports,
+            detail_title="Reports & Analytics",
+            detail_description=(
+                "Explore sales trends, product performance, and inventory turnover to make "
+                "data-driven decisions."
+            ),
+            detail_hint="Compare month-over-month growth to track seasonal campaigns.",
+            renderer=None
+        )
+
+    def create_sidebar_button(
+        self,
+        parent,
+        title,
+        command,
+        detail_title,
+        detail_description,
+        detail_hint,
+        renderer,
+    ):
+        """Create a sidebar navigation entry"""
+        container = tk.Frame(parent, bg="#3B2A1F")
+        container.pack(fill='x', padx=15, pady=8)
+        
+        button = tk.Button(
+            container,
+            text=title,
+            font=("Arial", 12, "bold"),
+            bg=self.button_color,
+            fg=self.text_color,
+            relief='flat',
+            bd=0,
+            activebackground="#B45818",
+            activeforeground=self.text_color,
+            height=2,
+            command=lambda: self._handle_sidebar_action(
+                command,
+                detail_title,
+                detail_description,
+                detail_hint,
+                renderer
+            )
+        )
+        button.pack(fill='x')
+        
+    def _add_graph_button(self, title, tooltip, command):
+        """Create a graph selector button"""
+        container = tk.Frame(self.graph_button_frame, bg=self.card_bg)
+        container.pack(side='left', padx=(0, 18))
+
+        button = tk.Button(
+            container,
+            text=title,
+            font=("Arial", 11, "bold"),
+            bg=self.button_color,
+            fg=self.text_color,
+            relief='flat',
+            bd=0,
+            padx=16,
+            pady=8,
+            activebackground="#B45818",
+            activeforeground=self.text_color,
+            command=command,
+        )
+        button.pack(fill='x')
+        
+        hint = tk.Label(
+            container,
+            text=tooltip,
+            font=("Arial", 9),
+            bg=self.card_bg,
+            fg="#7A6757",
+            wraplength=140,
+            justify='center'
+        )
+        hint.pack(pady=(4, 0))
+
+    def _clear_detail_content(self):
+        """Remove existing widgets/graphs from the detail panel"""
+        if getattr(self, "graph_canvas", None):
+            try:
+                self.graph_canvas.get_tk_widget().destroy()
+            except Exception:
+                pass
+            self.graph_canvas = None
+        for child in self.detail_content_frame.winfo_children():
+            try:
+                child.destroy()
+            except Exception:
+                pass
+
+    def _show_default_detail(self):
+        """Display the default welcome message in detail panel"""
+        self.detail_header_frame.pack(fill='x', padx=30, pady=(30, 10))
+        self.graph_button_frame.pack(fill='x', padx=30, pady=(0, 10))
+        self.detail_title.config(text="Welcome to the Administrator Dashboard")
+        self.detail_description.config(
+            text=(
+                "Use the tools on the left to manage products, inventory, sales, "
+                "and reports. Selected tool details and shortcuts will appear here."
+            )
+        )
+        self.detail_hint.config(
+            text="Tip: Double-check inventory levels before publishing product updates."
+        )
+        self._clear_detail_content()
+        self.detail_content_frame.configure(bg=self.card_bg)
+        placeholder = tk.Label(
+            self.detail_content_frame,
+            text="Select a graph button above or choose a management module from the sidebar.",
+            font=("Arial", 12),
+            bg=self.card_bg,
+            fg="#5C4A3A",
+            anchor='center',
+            justify='center',
+            wraplength=520,
+        )
+        placeholder.pack(expand=True)
+
+    def _show_graph(self, graph_type):
+        """Render a graph in the detail panel"""
+        graph_meta = {
+            "sales": {
+                "title": "Sales Overview",
+                "description": "Daily sales totals for the last 7 days.",
+                "hint": "Identify peak days and plan staffing accordingly.",
+                "chart": "line",
+                "color": "#D2691E",
+                "ylabel": "Total Sales (₱)",
+            },
+            "inventory": {
+                "title": "Inventory Levels",
+                "description": "Current stock for the top 10 products.",
+                "hint": "Restock items before they dip into the low threshold.",
+                "chart": "bar",
+                "color": "#8B4513",
+                "ylabel": "Available Units",
+            },
+            "top_products": {
+                "title": "Top Products",
+                "description": "Best-selling products based on recent sales volume.",
+                "hint": "Feature these items in promotions to boost repeat purchases.",
+                "chart": "bar",
+                "color": "#A0522D",
+                "ylabel": "Units Sold",
+            },
+        }
+
+        meta = graph_meta.get(graph_type)
+        if not meta:
+            return
+
+        self.detail_header_frame.pack(fill='x', padx=30, pady=(30, 10))
+        self.graph_button_frame.pack(fill='x', padx=30, pady=(0, 10))
+        self.detail_title.config(text=meta["title"])
+        self.detail_description.config(text=meta["description"])
+        self.detail_hint.config(text=meta["hint"])
+
+        self._clear_detail_content()
+        self.detail_content_frame.configure(bg=self.card_bg)
+
+        data = self._get_graph_data(graph_type)
+
+        if not MATPLOTLIB_AVAILABLE:
+            message = (
+                "Matplotlib is not installed. Please install it to view charts:\n"
+                "`pip install matplotlib`"
+            )
+            tk.Label(
+                self.detail_content_frame,
+                text=message,
+                font=("Arial", 11),
+                bg=self.card_bg,
+                fg="#7A6757",
+                justify='left',
+                wraplength=520,
+            ).pack(fill='both', expand=True, padx=10, pady=10)
+            return
+
+        if not data or not data["labels"]:
+            tk.Label(
+                self.detail_content_frame,
+                text="No data available yet for this chart.",
+                font=("Arial", 12, "italic"),
+                bg=self.card_bg,
+                fg="#7A6757",
+            ).pack(fill='both', expand=True, padx=10, pady=10)
+            return
+
+        figure = Figure(figsize=(5.6, 3.6), dpi=100)
+        ax = figure.add_subplot(111)
+
+        labels = data["labels"]
+        values = data["values"]
+
+        x_positions = list(range(len(labels)))
+
+        if meta["chart"] == "line":
+            ax.plot(x_positions, values, marker='o', linewidth=2, color=meta["color"])
+        else:
+            ax.bar(x_positions, values, color=meta["color"])
+
+        ax.set_ylabel(meta["ylabel"])
+        ax.set_xticks(x_positions)
+        ax.set_xticklabels(labels, rotation=25, ha='right')
+        ax.grid(True, axis='y', linestyle='--', linewidth=0.5, alpha=0.5)
+        ax.set_facecolor("#F8F1D4")
+        figure.patch.set_facecolor(self.card_bg)
+        figure.tight_layout()
+
+        self.graph_canvas = FigureCanvasTkAgg(figure, master=self.detail_content_frame)
+        self.graph_canvas.draw()
+        self.graph_canvas.get_tk_widget().pack(fill='both', expand=True)
+
+    def _get_graph_data(self, graph_type):
+        """Fetch data for the requested graph type"""
+        cursor = None
+        try:
+            conn = getattr(self.login_window, "get_db_connection", lambda: None)()
+            if not conn:
+                return None
+
+            cursor = conn.cursor(dictionary=True)
+
+            if graph_type == "sales":
+                schema = self._get_sales_schema()
+                sale_date_col = schema["sale_date"]
+                total_amount_col = schema["total_amount"]
+                query = f"""
+                    SELECT DATE(s.{sale_date_col}) AS label,
+                           COALESCE(SUM(s.{total_amount_col}), 0) AS total
+                    FROM sales s
+                    WHERE s.{sale_date_col} >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+                    GROUP BY DATE(s.{sale_date_col})
+                    ORDER BY DATE(s.{sale_date_col})
+                """
+                cursor.execute(query)
+                rows = cursor.fetchall()
+                labels = [row["label"].strftime("%b %d") if hasattr(row["label"], "strftime") else str(row["label"]) for row in rows]
+                values = [float(row["total"] or 0) for row in rows]
+                return {"labels": labels, "values": values}
+
+            if graph_type == "inventory":
+                schema = self._get_schema()
+                prod_id = schema["prod_id"]
+                prod_name = schema["prod_name"]
+                inv_qty = schema["inv_qty"]
+                inv_prod_fk = schema["inv_prod_fk"]
+                query = f"""
+                    SELECT COALESCE(p.{prod_name}, 'Unknown') AS label,
+                           COALESCE(i.{inv_qty}, 0) AS total
+                    FROM products p
+                    LEFT JOIN inventory i ON p.{prod_id} = i.{inv_prod_fk}
+                    ORDER BY total DESC
+                    LIMIT 10
+                """
+                cursor.execute(query)
+                rows = cursor.fetchall()
+                labels = [str(row["label"]) for row in rows]
+                values = [int(row["total"] or 0) for row in rows]
+                return {"labels": labels, "values": values}
+
+            if graph_type == "top_products":
+                schema = self._get_sales_schema()
+                sale_item_qty = schema["sale_item_qty"]
+                sale_item_product_fk = schema["sale_item_product_fk"]
+                product_name_col = schema["product_name"]
+                product_id_col = schema["product_id"]
+                query = f"""
+                    SELECT COALESCE(p.{product_name_col}, 'Unknown') AS label,
+                           COALESCE(SUM(si.{sale_item_qty}), 0) AS total
+                    FROM sale_items si
+                    JOIN products p ON si.{sale_item_product_fk} = p.{product_id_col}
+                    GROUP BY p.{product_id_col}, p.{product_name_col}
+                    ORDER BY total DESC
+                    LIMIT 10
+                """
+                cursor.execute(query)
+                rows = cursor.fetchall()
+                labels = [str(row["label"]) for row in rows]
+                values = [int(row["total"] or 0) for row in rows]
+                return {"labels": labels, "values": values}
+
+        except Exception as exc:
+            print(f"[Dashboard] Failed to load graph data ({graph_type}): {exc}")
+            return None
+        finally:
+            if cursor:
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
+
+    def _handle_sidebar_action(self, action, title, description, hint, renderer):
+        """Run the selected action and update detail panel"""
+        if renderer:
+            self.detail_header_frame.pack_forget()
+            self.graph_button_frame.pack_forget()
+            self._clear_detail_content()
+            self.detail_content_frame.configure(bg=self.bg_color)
+            try:
+                renderer(self.detail_content_frame)
+            except Exception as exc:
+                messagebox.showerror("Error", f"Failed to display {title}: {exc}")
+                self._show_default_detail()
+        else:
+            self.detail_header_frame.pack(fill='x', padx=30, pady=(30, 10))
+            self.graph_button_frame.pack(fill='x', padx=30, pady=(0, 10))
+            self.detail_title.config(text=title)
+            self.detail_description.config(text=description)
+            self.detail_hint.config(text=hint)
+            self._clear_detail_content()
+            self.detail_content_frame.configure(bg=self.card_bg)
+            if action:
+                try:
+                    action()
+                except Exception as exc:
+                    messagebox.showerror("Error", f"Failed to open {title}: {exc}")
     
     # Sales management behavior provided by SalesManagementMixin.
     
@@ -501,6 +842,7 @@ class CashierDashboard(BaseDashboard):
             relief='flat',
             bd=0,
             command=self.view_daily_sales,
+
             height=2
         )
         sales_btn.pack(expand=True, fill='both', padx=10, pady=10)
