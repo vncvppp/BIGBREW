@@ -54,7 +54,7 @@ USE bigbrewpos;
 
 4. **Initialize database tables**
 ```bash
-python init_database.py
+python -m app.db.initialize
 ```
 
 5. **Configure email settings** (for OTP verification)
@@ -86,12 +86,12 @@ Database setup
 CREATE DATABASE bigbrewpos;
 ```
 
-2. Update `db_config.py` with your DB credentials and database name.
+2. Update your `.env` (or the defaults in `app/config/__init__.py`) with the correct database credentials.
 
 Initialize tables
 
 ```powershell
-python init_database.py
+python -m app.db.initialize
 ```
 
 Configure email (optional)
@@ -113,13 +113,16 @@ Run the app
 python main.py
 ```
 
-## Project layout (top-level files)
+## Project layout
 
-- `main.py` — application entry
-- `login.py`, `signup.py`, `forgotpass.py`, `resetpass.py`, `otp.py` — auth flows
-- `admin_dashboard.py`, `home.py`, `order.py`, `menu_items.py`, `menu_coffee.py` — UI screens
-- `db_config.py`, `init_database.py`, `init_database_new.py` — DB wiring and init scripts
-- `utils.py`, `config.py` — helpers and configuration
+- `main.py` — application entry point
+- `app/config/` — environment-driven configuration helpers
+- `app/db/connection.py` — MySQL connection helpers
+- `app/db/initialize.py` — database schema + seed data
+- `app/services/` — shared domain services (`shared_state`, utility helpers)
+- `app/repositories/` — database repositories
+- `app/ui/` — Tkinter UI modules (login, signup, dashboards, ordering, etc.)
+- `app/utils/` — additional helper modules
 - `resources/` — images and UI assets
 - `requirements.txt` — Python dependencies
 
@@ -127,7 +130,7 @@ Note: There is a nested copy of the project under `New folder/BIGBREW/`. Use the
 
 ## Tips & troubleshooting
 
-- If you see database connection errors, confirm MySQL is running and credentials in `db_config.py` are correct.
+- If you see database connection errors, confirm MySQL is running and credentials in your `.env`/`app/config` match.
 - If OTP emails don't send, verify `.env` SMTP credentials and allow less-secure or app passwords as needed (provider dependent).
 - For UI issues, ensure the `resources/` subfolders contain the expected image files referenced by the code.
 

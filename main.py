@@ -8,15 +8,17 @@ import tkinter as tk
 from tkinter import messagebox
 import mysql.connector
 from mysql.connector import Error
-from login import LoginWindow
-from signup import SignupWindow
-from forgotpass import ForgotPasswordWindow
-from resetpass import PasswordResetWindow
-from config import DB_CONFIG, APP_CONFIG
-from db_config import db
-import os, sys
-import time
 from pathlib import Path
+import os
+import sys
+import time
+
+from app.config import DB_CONFIG, APP_CONFIG
+
+from app.ui.forgotpass import ForgotPasswordWindow
+from app.ui.login import LoginWindow
+from app.ui.resetpass import PasswordResetWindow
+from app.ui.signup import SignupWindow
 
 def resource_path(relative_path):
     """Get absolute path to resource, works for dev and for PyInstaller"""
@@ -90,35 +92,43 @@ class BigBrewApp:
     def setup_database(self):
         """Initialize database connection"""
         try:
-            # Always reset database on startup
-            from init_database import initialize_system_database
-            if APP_CONFIG.get('debug'):
-                print("↻ Resetting database to fresh state...")
-            if not initialize_system_database():
-                messagebox.showerror(
-                    "Database Error",
-                    "Failed to reinitialize database. Please check your MySQL server and try again."
-                )
-                self.root.quit()
-                return
-
-            # Connect to freshly initialized database
             self.db_connection = mysql.connector.connect(**DB_CONFIG)
             if self.db_connection.is_connected():
                 print("✓ Database connection established successfully")
+                self.db_connection.autocommit = True
 
         except Error as e:
             error_msg = f"Failed to connect to database: {str(e)}"
-            if APP_CONFIG['debug']:
+            if APP_CONFIG.get('debug'):
                 error_msg += f"\n\nDebug info: {e}"
 
-            messagebox.showerror("Database Error", error_msg)
+            should_initialize = messagebox.askyesno(
+                "Database Error",
+                f"{error_msg}\n\nWould you like to run the database initialization script?"
+            )
+            if should_initialize:
+                try:
+                    from app.db.initialize import initialize_system_database
+                    if initialize_system_database():
+                        self.db_connection = mysql.connector.connect(**DB_CONFIG)
+                        if self.db_connection.is_connected():
+                            print("✓ Database connection established successfully")
+                            self.db_connection.autocommit = True
+                            return
+                except Exception as init_exc:
+                    message = f"Database initialization failed: {init_exc}"
+                    if APP_CONFIG.get('debug'):
+                        message += f"\n\nDebug info: {init_exc}"
+                    messagebox.showerror("Database Error", message)
+            else:
+                messagebox.showerror("Database Error", error_msg)
             self.root.quit()
+            return
 
     def initialize_database(self):
         """Initialize the database schema"""
         try:
-            from init_database import initialize_system_database
+            from app.db.initialize import initialize_system_database
             if initialize_system_database():
                 messagebox.showinfo("Success", "Database initialized successfully!")
                 # Reconnect to the new database
@@ -220,7 +230,7 @@ class BigBrewApp:
                 self.show_customer_home(user_data)
             else:
                 # Staff account - show admin dashboard
-                from admin_dashboard import DashboardFactory
+                from app.ui.admin_dashboard import DashboardFactory
                 self.cleanup_current_module()
                 dashboard = DashboardFactory(user_data, self)
                 dashboard.show_dashboard()
@@ -244,7 +254,7 @@ class BigBrewApp:
 
         # Create customer home
         try:
-            from home import CustomerHome
+            from app.ui.home import CustomerHome
             self.current_module = CustomerHome(self.root, customer_data, self)
         except ImportError as e:
             messagebox.showerror("Error", f"Customer home module not available: {str(e)}")
@@ -283,7 +293,7 @@ class BigBrewApp:
 
         # Create admin dashboard
         try:
-            from admin_dashboard import AdminDashboard
+            from app.ui.admin_dashboard import AdminDashboard
             dashboard = AdminDashboard(self.current_user, self)
             dashboard.show()
         except ImportError:
