@@ -310,6 +310,7 @@ class BigBrewApp:
                 print(f"✓ User logging out: {self.current_user.get('email', 'unknown')}")
                 
             try:
+                
                 if self.current_user.get('account_type') == 'staff':
                     db.update_last_login(self.current_user['user_id'])
                 elif self.current_user.get('account_type') == 'customer':

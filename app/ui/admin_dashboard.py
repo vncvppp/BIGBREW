@@ -1064,15 +1064,24 @@ class AdminDashboard(
                 schema = self._get_sales_schema()
                 sale_date_col = schema["sale_date"]
                 total_amount_col = schema["total_amount"]
+                status_col = schema.get("status")
+
+                status_clause = ""
+                params: list = []
+                if status_col:
+                    status_clause = f" AND LOWER(s.{status_col}) = %s"
+                    params.append("paid")
+
                 query = f"""
                     SELECT DATE(s.{sale_date_col}) AS label,
                            COALESCE(SUM(s.{total_amount_col}), 0) AS total
                     FROM sales s
                     WHERE s.{sale_date_col} >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+                          {status_clause}
                     GROUP BY DATE(s.{sale_date_col})
                     ORDER BY DATE(s.{sale_date_col})
                 """
-                cursor.execute(query)
+                cursor.execute(query, tuple(params))
                 rows = cursor.fetchall()
                 labels = [row["label"].strftime("%b %d") if hasattr(row["label"], "strftime") else str(row["label"]) for row in rows]
                 values = [float(row["total"] or 0) for row in rows]
@@ -1104,16 +1113,28 @@ class AdminDashboard(
                 sale_item_product_fk = schema["sale_item_product_fk"]
                 product_name_col = schema["product_name"]
                 product_id_col = schema["product_id"]
+                sale_item_sale_fk = schema["sale_item_sale_fk"]
+                sale_id_col = schema["sale_id"]
+                status_col = schema.get("status")
+
+                status_clause = ""
+                params: list = []
+                if status_col:
+                    status_clause = f" WHERE LOWER(s.{status_col}) = %s"
+                    params.append("paid")
+
                 query = f"""
                     SELECT COALESCE(p.{product_name_col}, 'Unknown') AS label,
                            COALESCE(SUM(si.{sale_item_qty}), 0) AS total
                     FROM sale_items si
+                    JOIN sales s ON si.{sale_item_sale_fk} = s.{sale_id_col}
                     JOIN products p ON si.{sale_item_product_fk} = p.{product_id_col}
+                    {status_clause}
                     GROUP BY p.{product_id_col}, p.{product_name_col}
                     ORDER BY total DESC
                     LIMIT 10
                 """
-                cursor.execute(query)
+                cursor.execute(query, tuple(params))
                 rows = cursor.fetchall()
                 labels = [str(row["label"]) for row in rows]
                 values = [int(row["total"] or 0) for row in rows]

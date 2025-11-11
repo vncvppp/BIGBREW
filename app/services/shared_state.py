@@ -354,7 +354,7 @@ def save_purchase_to_db(
         )
         sale_id = cursor.lastrowid
 
-        # Insert each sale item and update inventory
+        # Insert each sale item
         for item in items:
             product_id = item.get("product_id") or item.get("id") or None
             qty = int(item.get("qty", 1))
@@ -368,38 +368,7 @@ def save_purchase_to_db(
                 (sale_id, product_id, qty, price),
             )
 
-            # Reduce inventory if product exists in inventory table
-            try:
-                cursor.execute(
-                    """
-                    UPDATE inventory
-                    SET quantity = GREATEST(0, quantity - %s),
-                        current_stock = GREATEST(0, current_stock - %s)
-                    WHERE product_id = %s
-                    """,
-                    (qty, qty, product_id),
-                )
-            except Exception:
-                # Don't fail whole transaction if inventory update is not possible
-                pass
-
         conn.commit()
-
-        if customer_id:
-            try:
-                cursor.execute(
-                    """
-                    UPDATE customers
-                    SET
-                        total_spent = COALESCE(total_spent, 0) + %s,
-                        loyalty_points = COALESCE(loyalty_points, 0) + CEIL(%s / 10)
-                    WHERE customer_id = %s
-                    """,
-                    (total_amount, total_amount, customer_id),
-                )
-                conn.commit()
-            except Exception:
-                conn.rollback()
 
         return sale_id
 

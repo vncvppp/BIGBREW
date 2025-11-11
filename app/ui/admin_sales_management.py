@@ -773,24 +773,128 @@ Items:
                 status_window.destroy()
                 return
 
+            conn = None
+            cursor = None
             try:
                 conn = get_db_connection()
-                cursor = conn.cursor()
+                cursor = conn.cursor(dictionary=True)
                 schema = self._get_sales_schema()
                 sale_id_col = schema["sale_id"]
                 status_col = schema.get("status") or "status"
+
                 cursor.execute(
                     f"UPDATE sales SET {status_col} = %s WHERE {sale_id_col} = %s",
                     (new_status, sale_id),
                 )
+
+                if new_status == "paid" and current_status != "paid":
+                    total_amount_col = schema["total_amount"]
+                    customer_fk_col = schema["customer_fk"]
+                    sale_item_sale_fk = schema["sale_item_sale_fk"]
+                    sale_item_product_fk = schema["sale_item_product_fk"]
+                    sale_item_qty = schema["sale_item_qty"]
+
+                    cursor.execute(
+                        f"""
+                        SELECT {customer_fk_col} AS customer_id,
+                               {total_amount_col} AS total_amount
+                        FROM sales
+                        WHERE {sale_id_col} = %s
+                        """,
+                        (sale_id,),
+                    )
+                    sale_row = cursor.fetchone() or {}
+                    customer_id = sale_row.get("customer_id")
+                    total_amount = sale_row.get("total_amount") or 0
+
+                    if customer_id:
+                        try:
+                            total_amount_value = float(total_amount)
+                        except (TypeError, ValueError):
+                            total_amount_value = 0.0
+
+                        cursor.execute(
+                            """
+                            UPDATE customers
+                            SET total_spent = COALESCE(total_spent, 0) + %s,
+                                loyalty_points = COALESCE(loyalty_points, 0) + CEIL(%s / 10)
+                            WHERE customer_id = %s
+                            """,
+                            (total_amount_value, total_amount_value, customer_id),
+                        )
+
+                    cursor.execute(
+                        f"""
+                        SELECT si.{sale_item_product_fk} AS product_key,
+                               si.{sale_item_qty} AS qty_value
+                        FROM sale_items si
+                        WHERE si.{sale_item_sale_fk} = %s
+                        """,
+                        (sale_id,),
+                    )
+                    sale_items = cursor.fetchall() or []
+
+                    inventory_schema = self._get_schema()
+                    inv_qty_col = inventory_schema["inv_qty"]
+                    inv_prod_fk = inventory_schema["inv_prod_fk"]
+                    inv_cols = self._get_table_columns("inventory")
+
+                    deductions = {}
+                    for item_row in sale_items:
+                        product_key = item_row.get("product_key")
+                        if product_key is None:
+                            continue
+                        try:
+                            qty_value = int(item_row.get("qty_value") or 0)
+                        except (TypeError, ValueError):
+                            qty_value = 0
+                        if qty_value <= 0:
+                            continue
+                        deductions[product_key] = deductions.get(product_key, 0) + qty_value
+
+                    for product_key, qty_value in deductions.items():
+                        set_clauses = [
+                            f"{inv_qty_col} = GREATEST(0, COALESCE({inv_qty_col}, 0) - %s)"
+                        ]
+                        params = [qty_value]
+
+                        if "current_stock" in inv_cols and inv_qty_col != "current_stock":
+                            set_clauses.append(
+                                "current_stock = GREATEST(0, COALESCE(current_stock, 0) - %s)"
+                            )
+                            params.append(qty_value)
+
+                        params.append(product_key)
+
+                        cursor.execute(
+                            f"""
+                            UPDATE inventory
+                            SET {', '.join(set_clauses)}
+                            WHERE {inv_prod_fk} = %s
+                            """,
+                            tuple(params),
+                        )
+
                 conn.commit()
-                cursor.close()
-                conn.close()
+                if cursor:
+                    cursor.close()
+                if conn:
+                    conn.close()
+                cursor = None
+                conn = None
 
                 messagebox.showinfo("Success", f"Sale #{sale_id} status updated to {new_status.title()}")
                 status_window.destroy()
                 self.refresh_sales_list()
             except Exception as exc:
+                try:
+                    if cursor:
+                        cursor.close()
+                    if conn:
+                        conn.rollback()
+                        conn.close()
+                except Exception:
+                    pass
                 messagebox.showerror("Error", f"Failed to update status: {exc}")
 
         button_container = tk.Frame(form_frame, bg=self.card_bg)
