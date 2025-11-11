@@ -1,149 +1,110 @@
 # BigBrew Coffee Shop POS System
 
-A comprehensive Tkinter-based Point of Sale (POS) system for BigBrew coffee shop with MySQL database integration, user authentication, OTP verification, and role-based access control.
+Tkinter-based point of sale application used by BigBrew coffee shops. The system ships with role-aware dashboards (admin, staff, inventory manager, cashier, barista, and customer), OTP-backed account flows, and a MySQL persistence layer.
 
-## 🚀 Features
+## Highlights
+- Authentication with bcrypt password hashing, account status validation, OTP verification, and password reset flow
+- Separate dashboards for staff and customers, including inventory, product, ordering, checkout, and reporting modules
+- MySQL-backed repository layer with schema initialization script and seed data helpers
+- Configurable through `.env` (database, email/SMTP, and runtime switches) or OS environment variables
+- Packaged assets under `resources/` to keep the coffee-themed UI consistent
 
-### Authentication & Security
-- **Secure Login System**: Bcrypt password hashing and verification
-- **User Registration**: Email-based signup with OTP verification
-- **Password Reset**: Forgot password functionality with email verification
-- **OTP Verification**: 6-digit OTP system for email verification
-- **Role-Based Access**: Support for Admin, Manager, Cashier, Barista, and Inventory Manager roles
-- **Account Security**: Active/inactive account status checking
+## Project Layout
+- `main.py` – desktop application bootstrapper, handles window routing and DB connection lifecycle
+- `app/config/` – environment-driven configuration (`DB_CONFIG`, `APP_CONFIG`, `EMAIL_CONFIG`, OTP/session settings)
+- `app/db/` – MySQL connection helpers and schema initializer (`python -m app.db.initialize`)
+- `app/repositories/` – database access abstractions for users, customers, orders, and reports
+- `app/services/` – shared state management and service utilities (cart, formatting, helpers)
+- `app/ui/` – Tkinter windows for login/signup, OTP, dashboards, ordering, checkout, and reports
+- `app/utils/` – supporting helpers (email, validation, formatting)
+- `resources/` – UI imagery and icon assets
+- `tests/` – pytest-based regression tests (currently focused on shared state helpers)
 
-### User Interface
-- **Modern Coffee Shop Theme**: Brown and gold color scheme with coffee-themed graphics
-- **Responsive Design**: Clean, intuitive interface with proper tab navigation
-- **Password Visibility Toggle**: Eye icon to show/hide passwords
-- **Back Navigation**: Back buttons on all forms for easy navigation
-- **Form Validation**: Real-time validation with user-friendly error messages
-- **Keyboard Navigation**: Full keyboard support with Tab and Enter key handling
+## Prerequisites
+- Python 3.8 or newer (3.10+ recommended)
+- MySQL Server (local or remote instance accessible from the workstation)
+- SMTP-capable email account for OTP delivery (optional for non-email flows)
+- Windows PowerShell or macOS/Linux shell for running the provided commands
 
-### Database Integration
-- **MySQL Connectivity**: Robust database connection with error handling
-- **Customer Management**: Complete customer registration and management system
-- **OTP Tracking**: Database-stored OTP verification with expiration
-- **Transaction Safety**: Proper database transaction handling
+## Setup
 
-## 📋 Quick Start
+1. **Clone & enter the repository**
+   ```powershell
+   git clone <repository-url>
+   cd BIGBREW-1
+   ```
 
-### Prerequisites
-- Python 3.8 or higher
-- MySQL Server
-- SMTP email account (for OTP verification)
+2. **Create and activate a virtual environment (recommended)**
+   ```powershell
+   python -m venv .venv
+   .\\.venv\\Scripts\\Activate.ps1
+   ```
+   (On macOS/Linux: `source .venv/bin/activate`)
 
-### Installation
+3. **Install dependencies**
+   ```powershell
+   python -m pip install --upgrade pip
+   pip install -r requirements.txt
+   pip install python-dotenv  # required for loading .env files
+   ```
 
-1. **Clone the repository**
-```bash
-git clone <repository-url>
-cd BIGBREW-1
-```
+4. **Configure environment variables**
+   Create a `.env` file in the project root (same folder as `main.py`) and update the values to match your environment:
+   ```ini
+   # Application
+   APP_DEBUG=True
+   APP_SECRET_KEY=change-me
 
-2. **Install dependencies**
-```bash
-pip install -r requirements.txt
-```
+   # Database
+   DB_HOST=localhost
+   DB_PORT=3306
+   DB_USER=root
+   DB_PASSWORD=your-password
+   DB_NAME=bigbrewpos
 
-3. **Set up MySQL database**
-```sql
-CREATE DATABASE bigbrewpos;
-USE bigbrewpos;
-```
+   # OTP / Session
+   OTP_EXPIRY_MINUTES=10
+   MAX_LOGIN_ATTEMPTS=3
+   SESSION_TIMEOUT_MINUTES=30
 
-4. **Initialize database tables**
-```bash
-python -m app.db.initialize
-```
+   # Email (optional but required for OTP emails)
+   EMAIL_ADDRESS=your-email@example.com
+   EMAIL_PASSWORD=your-app-password
+   SMTP_SERVER=smtp.gmail.com
+   SMTP_PORT=587
+   ```
 
-5. **Configure email settings** (for OTP verification)
-Create a `.env` file in the project root:
-```env
-# BigBrew — Coffee Shop POS (Tkinter + MySQL)
+5. **Prepare the database**
+   - Ensure your MySQL server is running.
+   - Create the database (matching the `DB_NAME` value in `.env`):
+     ```sql
+     CREATE DATABASE bigbrewpos CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+     ```
+   - Initialize/upgrade the schema and seed data:
+     ```powershell
+     python -m app.db.initialize
+     ```
 
-A lightweight Point of Sale desktop app (Tkinter) used for managing orders, users and OTP-based authentication. This README gives quick setup and run steps for local development on Windows (PowerShell).
+6. **Run the application**
+   ```powershell
+   python main.py
+   ```
 
-## Quick start (Windows PowerShell)
+The launcher handles login/signup, customer and staff routes, and gracefully reports configuration or connectivity issues. Debug logging is enabled via `APP_DEBUG=True`.
 
-Prerequisites
-- Python 3.8+
-- MySQL Server
-- An SMTP account if you want OTP/email features
-
-Install dependencies
-
+## Testing
+Install development dependencies as needed (pytest is bundled with Python 3.11+, otherwise install manually) and run:
 ```powershell
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+pytest
 ```
 
-Database setup
-
-1. Start MySQL server and create a database (example name used below):
-
-```sql
-CREATE DATABASE bigbrewpos;
-```
-
-2. Update your `.env` (or the defaults in `app/config/__init__.py`) with the correct database credentials.
-
-Initialize tables
-
-```powershell
-python -m app.db.initialize
-```
-
-Configure email (optional)
-
-Create a `.env` file in the project root (used by the OTP/email utilities):
-
-```ini
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-email@example.com
-SMTP_PASS=your-app-password
-SMTP_FROM=your-email@example.com
-SMTP_USE_TLS=true
-```
-
-Run the app
-
-```powershell
-python main.py
-```
-
-## Project layout
-
-- `main.py` — application entry point
-- `app/config/` — environment-driven configuration helpers
-- `app/db/connection.py` — MySQL connection helpers
-- `app/db/initialize.py` — database schema + seed data
-- `app/services/` — shared domain services (`shared_state`, utility helpers)
-- `app/repositories/` — database repositories
-- `app/ui/` — Tkinter UI modules (login, signup, dashboards, ordering, etc.)
-- `app/utils/` — additional helper modules
-- `resources/` — images and UI assets
-- `requirements.txt` — Python dependencies
-
-Note: There is a nested copy of the project under `New folder/BIGBREW/`. Use the root folder (`C:\Users\Admin\Desktop\BIGBREW`) when running commands.
-
-## Tips & troubleshooting
-
-- If you see database connection errors, confirm MySQL is running and credentials in your `.env`/`app/config` match.
-- If OTP emails don't send, verify `.env` SMTP credentials and allow less-secure or app passwords as needed (provider dependent).
-- For UI issues, ensure the `resources/` subfolders contain the expected image files referenced by the code.
-
-## Development notes
-
-- The app uses parameterized queries to reduce SQL injection risk and bcrypt for password hashing where implemented.
-- Main UI is built with Tkinter — standard desktop app behavior applies (no web server required).
+## Troubleshooting
+- **Cannot connect to MySQL:** Verify the server is reachable and credentials in `.env` match your database. The initializer can create/upgrade the schema if prompted from the app.
+- **OTP email not sending:** Ensure SMTP credentials are valid, TLS/ports are correct, and the provider allows SMTP/IMAP (for Gmail use an app password).
+- **Missing assets or UI errors:** Confirm the `resources/` folder stays beside `main.py`; PyInstaller bundles use the same structure via `resource_path`.
+- **Shared cart issues:** Delete `shared_cart.json` in the project root to reset cached cart state.
 
 ## Contributing
-
-Feel free to open issues or PRs. Prefer small, focused changes (one feature or bugfix per PR).
-
----
+Submit issues or pull requests with focused changes (features, bug fixes, or documentation updates). Keep styling consistent and include tests when adding behavior.
 
 Happy brewing ☕
-
