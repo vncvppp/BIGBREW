@@ -101,7 +101,20 @@ def open_coming_soon():
 
 def open_home():
     try:
-        subprocess.Popen([sys.executable, "-m", "app.ui.home"], cwd=str(PROJECT_ROOT))
+        state = get_state()
+        customer_id = None
+        try:
+            customer_id = state.get("customer_id")
+        except Exception:
+            customer_id = None
+        if not customer_id and customer_id_arg is not None:
+            customer_id = customer_id_arg
+
+        args = [sys.executable, "-m", "app.ui.home"]
+        if customer_id:
+            args.append(f"--customer-id={customer_id}")
+
+        subprocess.Popen(args, cwd=str(PROJECT_ROOT))
     finally:
         try:
             window.destroy()
@@ -442,7 +455,13 @@ def open_checkout_popup():
         if customer_id is not None:
             set_current_customer(customer_id)
 
-        run_checkout(cart_items, parent=window, add_on_total=add_on_total, customer_id=customer_id)
+        run_checkout(
+            cart_items,
+            parent=window,
+            add_on_total=add_on_total,
+            customer_id=customer_id,
+            require_proof_methods={"GCash", "Maya"},
+        )
     except Exception as exc:
         print(f"Failed to open checkout popup: {exc}")
         messagebox.showerror("Checkout", f"Unable to open checkout window:\n{exc}")

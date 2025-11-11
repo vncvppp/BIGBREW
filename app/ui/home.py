@@ -11,11 +11,95 @@ import sys
 import os
 import subprocess
 from datetime import datetime
+from decimal import Decimal
+import re
+import bcrypt
 
 from app.db.connection import db
+from app.services.shared_state import clear_cart, set_current_customer
 
 OUTPUT_PATH = Path(__file__).resolve().parent
 PROJECT_ROOT = OUTPUT_PATH.parent.parent
+
+
+def _parse_customer_id(argv):
+    """Return customer_id from CLI args if provided."""
+    if not argv:
+        return None
+    for idx, arg in enumerate(argv):
+        if arg.startswith("--customer-id="):
+            value = arg.split("=", 1)[1]
+        elif arg == "--customer-id" and idx + 1 < len(argv):
+            value = argv[idx + 1]
+        else:
+            continue
+        if not value:
+            return None
+        try:
+            return int(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _coerce_int(value, default=0):
+    if value in (None, ""):
+        return default
+    try:
+        return int(value)
+    except Exception:
+        try:
+            return int(float(value))
+        except Exception:
+            return default
+
+
+def _coerce_float(value, default=0.0):
+    if value in (None, ""):
+        return default
+    try:
+        if isinstance(value, Decimal):
+            return float(value)
+        return float(value)
+    except Exception:
+        return default
+
+
+def _load_customer_from_db(customer_id):
+    """Fetch customer details from the database for the given id."""
+    try:
+        rows = db.execute_query(
+            """
+            SELECT customer_id, customer_code, username, email,
+                   first_name, last_name, customer_type,
+                   loyalty_points, total_spent, phone, address
+            FROM customers
+            WHERE customer_id = %s
+            """,
+            (customer_id,),
+            fetch=True,
+        )
+    except Exception as exc:
+        print(f"Failed to load customer {customer_id}: {exc}")
+        return None
+
+    if not rows:
+        return None
+
+    row = rows[0]
+    return {
+        "customer_id": _coerce_int(row.get("customer_id"), default=customer_id),
+        "customer_code": row.get("customer_code") or "N/A",
+        "username": row.get("username") or "customer",
+        "email": row.get("email") or "N/A",
+        "first_name": (row.get("first_name") or "").strip() or "Customer",
+        "last_name": (row.get("last_name") or "").strip(),
+        "customer_type": (row.get("customer_type") or "regular").lower(),
+        "loyalty_points": _coerce_int(row.get("loyalty_points"), default=0),
+        "total_spent": _coerce_float(row.get("total_spent"), default=0.0),
+        "phone": (row.get("phone") or "").strip(),
+        "address": (row.get("address") or "").strip(),
+    }
 
 def resource_path(relative_path):
     """Get absolute path to resource, works for dev and for PyInstaller"""
@@ -46,22 +130,54 @@ def relative_to_assets(path: str) -> Path:
 class CustomerHome:
     def __init__(self, parent, customer_data, app):
         self.parent = parent
-        self.customer_data = customer_data
+        self.customer_data = dict(customer_data or {})
         self.app = app
         self.images = []  # Keep references to images
         
-        # Customer information
-        self.customer_id = customer_data.get('customer_id')
-        self.customer_code = customer_data.get('customer_code', 'N/A')
-        self.username = customer_data.get('username', 'Customer')
-        self.email = customer_data.get('email', 'N/A')
-        self.first_name = customer_data.get('first_name', 'Customer')
-        self.last_name = customer_data.get('last_name', 'User')
-        self.customer_type = customer_data.get('customer_type', 'regular')
-        self.loyalty_points = customer_data.get('loyalty_points', 0)
-        self.total_spent = customer_data.get('total_spent', 0.0)
+        # Default values
+        self.customer_id = None
+        self.customer_code = 'N/A'
+        self.username = 'Customer'
+        self.email = 'N/A'
+        self.first_name = 'Customer'
+        self.last_name = 'User'
+        self.customer_type = 'regular'
+        self.loyalty_points = 0
+        self.total_spent = 0.0
+        self.phone = ''
+        self.address = ''
+
+        self._apply_customer_updates(self.customer_data)
         
         self.setup_ui()
+
+    def _apply_customer_updates(self, data):
+        if not data:
+            return
+
+        # Update backing dictionary (ignoring None values)
+        for key, value in data.items():
+            if value is not None:
+                self.customer_data[key] = value
+
+        self.customer_id = self.customer_data.get('customer_id', self.customer_id)
+        self.customer_code = self.customer_data.get('customer_code', self.customer_code)
+        self.username = self.customer_data.get('username', self.username)
+        self.email = self.customer_data.get('email', self.email)
+
+        first_name = (self.customer_data.get('first_name') or '').strip()
+        last_name = (self.customer_data.get('last_name') or '').strip()
+        if first_name:
+            self.first_name = first_name
+        else:
+            self.first_name = 'Customer'
+        self.last_name = last_name or 'User'
+
+        self.customer_type = self.customer_data.get('customer_type', self.customer_type)
+        self.loyalty_points = self.customer_data.get('loyalty_points', self.loyalty_points)
+        self.total_spent = self.customer_data.get('total_spent', self.total_spent)
+        self.phone = self.customer_data.get('phone', self.phone)
+        self.address = self.customer_data.get('address', self.address)
         
     def center_parent(self, width: int = 1035, height: int = 534):
         """Center the parent window on the screen for the given size."""
@@ -662,8 +778,220 @@ class CustomerHome:
         messagebox.showinfo("Store Locator", "Store locator feature coming soon!\n\nYou'll be able to find BigBrew locations near you with directions and store hours.")
     
     def edit_profile(self):
-        """Edit customer profile"""
-        messagebox.showinfo("Edit Profile", "Profile editing feature coming soon!\n\nYou'll be able to update your personal information, delivery addresses, and preferences.")
+        """Open dialog to edit customer profile."""
+        if not self.customer_id:
+            messagebox.showinfo("Edit Profile", "No customer information available.")
+            return
+
+        latest = _load_customer_from_db(self.customer_id)
+        if latest:
+            self._apply_customer_updates(latest)
+
+        dialog = tk.Toplevel(self.parent)
+        dialog.title("Edit Profile")
+        dialog.configure(bg="#FFF8E7")
+        dialog.resizable(False, False)
+
+        try:
+            dialog.transient(self.parent)
+            dialog.grab_set()
+        except Exception:
+            pass
+
+        try:
+            dialog.update_idletasks()
+            width, height = 420, 530
+            pw = self.parent.winfo_width()
+            ph = self.parent.winfo_height()
+            px = self.parent.winfo_rootx()
+            py = self.parent.winfo_rooty()
+            x = int(px + (pw - width) / 2)
+            y = int(py + (ph - height) / 2)
+            dialog.geometry(f"{width}x{height}+{x}+{y}")
+        except Exception:
+            dialog.geometry("420x530")
+
+        header = tk.Label(
+            dialog,
+            text="Update Profile",
+            font=("Poppins", 16, "bold"),
+            bg="#FFF8E7",
+            fg="#3A280F",
+        )
+        header.pack(pady=(20, 10))
+
+        form_frame = tk.Frame(dialog, bg="#FFF8E7")
+        form_frame.pack(fill="both", expand=True, padx=30)
+
+        def add_row(row, label_text, widget):
+            label = tk.Label(
+                form_frame,
+                text=label_text,
+                font=("Poppins", 10, "bold"),
+                anchor="w",
+                bg="#FFF8E7",
+                fg="#3A280F",
+            )
+            label.grid(row=row, column=0, sticky="w")
+            widget.grid(row=row + 1, column=0, sticky="ew", pady=(0, 12))
+
+        form_frame.columnconfigure(0, weight=1)
+
+        entry_style = {"font": ("Poppins", 10), "bg": "#FFFFFF", "fg": "#000000", "relief": "solid", "borderwidth": 1}
+
+        first_name_var = tk.StringVar(value=self.first_name)
+        first_entry = tk.Entry(form_frame, textvariable=first_name_var, **entry_style)
+        add_row(0, "First Name", first_entry)
+
+        last_name_var = tk.StringVar(value=self.last_name)
+        last_entry = tk.Entry(form_frame, textvariable=last_name_var, **entry_style)
+        add_row(2, "Last Name", last_entry)
+
+        email_var = tk.StringVar(value=self.email)
+        email_entry = tk.Entry(form_frame, textvariable=email_var, **entry_style)
+        add_row(4, "Email Address", email_entry)
+
+        phone_var = tk.StringVar(value=self.phone or "")
+        phone_entry = tk.Entry(form_frame, textvariable=phone_var, **entry_style)
+        add_row(6, "Phone Number", phone_entry)
+
+        address_text = tk.Text(form_frame, height=2, wrap="word", font=("Poppins", 10), bg="#FFFFFF", fg="#000000", relief="solid", borderwidth=1)
+        address_text.insert("1.0", self.address or "")
+        add_row(8, "Address", address_text)
+
+        password_var = tk.StringVar()
+        password_entry = tk.Entry(form_frame, textvariable=password_var, show="●", **entry_style)
+        add_row(10, "New Password (optional)", password_entry)
+
+        confirm_var = tk.StringVar()
+        confirm_entry = tk.Entry(form_frame, textvariable=confirm_var, show="●", **entry_style)
+        add_row(12, "Confirm Password", confirm_entry)
+
+        info_label = tk.Label(
+            form_frame,
+            text="Leave password fields blank to keep your current password.",
+            font=("Poppins", 9),
+            bg="#FFF8E7",
+            fg="#6C6C6C",
+            wraplength=340,
+            justify="left",
+        )
+        info_label.grid(row=14, column=0, sticky="w", pady=(0, 8))
+
+        button_frame = tk.Frame(dialog, bg="#FFF8E7")
+        button_frame.pack(pady=(0, 20))
+
+        def close_dialog():
+            try:
+                dialog.destroy()
+            except Exception:
+                pass
+
+        def save_profile():
+            first_name = first_name_var.get().strip()
+            last_name = last_name_var.get().strip()
+            email = email_var.get().strip()
+            phone = phone_var.get().strip()
+            address = address_text.get("1.0", "end").strip()
+            new_password = password_var.get()
+            confirm_password = confirm_var.get()
+
+            if not first_name:
+                messagebox.showerror("Edit Profile", "First name cannot be empty.")
+                return
+            if not email:
+                messagebox.showerror("Edit Profile", "Email address cannot be empty.")
+                return
+            if not re.match(r"^[^@]+@[^@]+\.[^@]+$", email):
+                messagebox.showerror("Edit Profile", "Please enter a valid email address.")
+                return
+
+            if new_password or confirm_password:
+                if len(new_password) < 6:
+                    messagebox.showerror("Edit Profile", "Password must be at least 6 characters long.")
+                    return
+                if new_password != confirm_password:
+                    messagebox.showerror("Edit Profile", "New password and confirmation do not match.")
+                    return
+
+            duplicates = db.execute_query(
+                "SELECT customer_id FROM customers WHERE email = %s AND customer_id <> %s",
+                (email, self.customer_id),
+                fetch=True,
+            )
+            if duplicates:
+                messagebox.showerror("Edit Profile", "That email address is already registered to another account.")
+                return
+
+            try:
+                result = db.update_customer_profile(
+                    self.customer_id,
+                    first_name,
+                    last_name,
+                    email,
+                    phone,
+                    address,
+                )
+                if result is None:
+                    messagebox.showerror("Edit Profile", "Failed to update profile. Please try again.")
+                    return
+            except Exception as exc:
+                messagebox.showerror("Edit Profile", f"Failed to update profile: {exc}")
+                return
+
+            if new_password:
+                try:
+                    hash_value = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+                    db.update_customer_password_hash(self.customer_id, hash_value)
+                except Exception as exc:
+                    messagebox.showerror("Edit Profile", f"Profile updated, but failed to update password: {exc}")
+                    # do not return; still refresh data
+
+            updated_data = {
+                "first_name": first_name,
+                "last_name": last_name,
+                "email": email,
+                "phone": phone,
+                "address": address,
+            }
+            self._apply_customer_updates(updated_data)
+            messagebox.showinfo("Edit Profile", "Profile updated successfully.")
+            close_dialog()
+            self.setup_ui()
+
+        save_btn = tk.Button(
+            button_frame,
+            text="Save Changes",
+            font=("Poppins", 11, "bold"),
+            bg="#28A745",
+            fg="white",
+            activebackground="#218838",
+            activeforeground="white",
+            relief="flat",
+            bd=0,
+            padx=20,
+            pady=8,
+            cursor="hand2",
+            command=save_profile,
+        )
+        save_btn.pack(side="left", padx=10)
+
+        cancel_btn = tk.Button(
+            button_frame,
+            text="Cancel",
+            font=("Poppins", 11),
+            bg="#6C757D",
+            fg="white",
+            activebackground="#5a6268",
+            activeforeground="white",
+            relief="flat",
+            bd=0,
+            padx=20,
+            pady=8,
+            cursor="hand2",
+            command=close_dialog,
+        )
+        cancel_btn.pack(side="left", padx=10)
     
     def view_order_history(self):
         """View order history"""
@@ -700,7 +1028,7 @@ class CustomerHome:
         except Exception:
             pass
 
-        columns = ("order_id", "total", "payment", "date", "items")
+        columns = ("order_id", "total", "payment", "status", "date", "items")
         tree = ttk.Treeview(
             history_win,
             columns=columns,
@@ -710,12 +1038,14 @@ class CustomerHome:
         tree.heading("order_id", text="Order ID")
         tree.heading("total", text="Total Amount")
         tree.heading("payment", text="Payment Method")
+        tree.heading("status", text="Status")
         tree.heading("date", text="Date")
         tree.heading("items", text="Items")
 
         tree.column("order_id", width=80, anchor="center")
         tree.column("total", width=120, anchor="center")
         tree.column("payment", width=160, anchor="center")
+        tree.column("status", width=120, anchor="center")
         tree.column("date", width=200, anchor="center")
         tree.column("items", width=420, anchor="w")
 
@@ -741,6 +1071,7 @@ class CustomerHome:
                     order.get("sale_id"),
                     f"₱{float(order.get('total_amount') or 0.0):,.2f}",
                     order.get("payment_method", "").title(),
+                    order.get("status", "pending").title(),
                     str(order.get("sale_date") or ""),
                     items_description,
                 ),
@@ -780,9 +1111,16 @@ class CustomerHome:
 
 # For testing purposes
 if __name__ == "__main__":
-    # Sample customer data for testing
-    sample_customer = {
-        'customer_id': 1,
+    cli_customer_id = _parse_customer_id(sys.argv[1:])
+    customer_data = None
+
+    if cli_customer_id:
+        customer_data = _load_customer_from_db(cli_customer_id)
+
+    if not customer_data:
+        # Fallback sample profile for manual testing
+        customer_data = {
+            'customer_id': cli_customer_id or 1,
         'customer_code': 'CUST-20241201120000',
         'username': 'john.doe',
         'email': 'john.doe@email.com',
@@ -791,19 +1129,55 @@ if __name__ == "__main__":
         'customer_type': 'regular',
         'loyalty_points': 150,
         'total_spent': 250.75,
-        'account_type': 'customer'
+            'account_type': 'customer',
+            'phone': '+63 912-345-6789',
+            'address': '123 Coffee Street, Brew City',
     }
     
     class MockApp:
+        def __init__(self, window):
+            self.window = window
+
         def logout(self):
-            print("Mock logout called")
+            try:
+                clear_cart()
+            except Exception:
+                pass
+
+            try:
+                set_current_customer(None)
+            except Exception:
+                pass
+
+            try:
+                for widget in self.window.winfo_children():
+                    widget.destroy()
+            except Exception:
+                pass
+
+            try:
+                self.window.destroy()
+            except Exception:
+                pass
+
+            try:
+                subprocess.Popen([sys.executable, "-m", "main"], cwd=str(PROJECT_ROOT))
+            except Exception:
+                pass
+
+            try:
+                sys.exit(0)
+            except SystemExit:
+                raise
+            except Exception:
+                pass
     
     root = tk.Tk()
-    root.title("BigBrew Customer Home - Test")
+    root.title("BigBrew Customer Home")
     root.geometry("1035x534")
     root.configure(bg="#FFFFFF")
     
-    app = MockApp()
-    customer_home = CustomerHome(root, sample_customer, app)
+    app = MockApp(root)
+    customer_home = CustomerHome(root, customer_data, app)
     
     root.mainloop()

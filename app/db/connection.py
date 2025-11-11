@@ -150,6 +150,17 @@ class DatabaseConfig:
         )
         return self.execute_query(query, (password_hash, customer_id))
 
+    def update_customer_profile(self, customer_id, first_name, last_name, email, phone=None, address=None):
+        """Update editable customer profile fields."""
+        query = (
+            "UPDATE customers SET first_name=%s, last_name=%s, email=%s, phone=%s, address=%s, "
+            "updated_at = CURRENT_TIMESTAMP WHERE customer_id=%s"
+        )
+        return self.execute_query(
+            query,
+            (first_name or None, last_name or None, email, phone or None, address or None, customer_id),
+        )
+
     def fetch_customer_orders(self, customer_id):
         """Fetch orders for a specific customer."""
         query = """

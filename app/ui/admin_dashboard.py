@@ -251,7 +251,7 @@ class AdminDashboard(
             bg="#3B2A1F",
             fg=self.accent_color
         )
-        sidebar_title.pack(anchor='w', padx=20, pady=(20, 10))
+        sidebar_title.pack(anchor='w', padx=40, pady=(40, 20))
         
         # Content area on the right
         self.detail_frame = tk.Frame(content_frame, bg=self.card_bg)
@@ -612,7 +612,7 @@ class AdminDashboard(
                 form,
                 text="Use 'Reset Password' to update credentials.",
                 font=("Arial", 9, "italic"),
-                bg=self.card_bg,
+            bg=self.card_bg,
                 fg="#7A6757",
             ).grid(row=5, column=0, columnspan=2, sticky='w', pady=(8, 0))
 

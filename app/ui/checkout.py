@@ -23,7 +23,7 @@ def relative_to_assets(path: str) -> Path:
     return ASSETS_PATH / Path(path)
 
 
-def run_checkout(cart_items, parent=None, add_on_total=0.0, customer_id=None):
+def run_checkout(cart_items, parent=None, add_on_total=0.0, customer_id=None, require_proof_methods=None):
     is_modal = parent is not None
     window = Toplevel(parent) if is_modal else Tk()
     window.geometry("399x528")
@@ -148,7 +148,7 @@ def run_checkout(cart_items, parent=None, add_on_total=0.0, customer_id=None):
     # Payment method (radio buttons) - exclusive (cannot unselect all)
     pay_method = StringVar(value="Cash")
     y_base = current_y + 27.0
-    methods = ["Cash", "GCash", "Card (Visa)"]
+    methods = ["Cash", "GCash", "Maya"]
     for idx, txt in enumerate(methods):
         rb = Radiobutton(
             window, text=txt, variable=pay_method, value=txt,
@@ -264,8 +264,11 @@ def run_checkout(cart_items, parent=None, add_on_total=0.0, customer_id=None):
             result["path"] = None
             proof_window.destroy()
 
+        button_bar = Frame(proof_window, bg="#FFF8E7")
+        button_bar.place(relx=0.5, y=170, anchor="center")
+
         cancel_btn = Button(
-            proof_window,
+            button_bar,
             text="Cancel",
             bg="#DC3545",
             fg="white",
@@ -273,10 +276,10 @@ def run_checkout(cart_items, parent=None, add_on_total=0.0, customer_id=None):
             command=cancel_proof,
             width=12,
         )
-        cancel_btn.place(x=170, y=160)
+        cancel_btn.pack(side="left", padx=10)
 
         submit_btn = Button(
-            proof_window,
+            button_bar,
             text="Submit",
             bg="#28A745",
             fg="white",
@@ -284,7 +287,7 @@ def run_checkout(cart_items, parent=None, add_on_total=0.0, customer_id=None):
             command=submit_proof,
             width=12,
         )
-        submit_btn.place(x=280, y=160)
+        submit_btn.pack(side="left", padx=10)
 
         proof_window.resizable(False, False)
         window.wait_window(proof_window)
@@ -296,29 +299,58 @@ def run_checkout(cart_items, parent=None, add_on_total=0.0, customer_id=None):
             mbox.showinfo("Select Payment", "Please select a payment method.")
             return
 
-        proof_source = prompt_proof_upload(grand_total, pay_method.get())
-        if not proof_source:
-            mbox.showinfo("Proof Required", "Checkout cancelled. No proof of payment uploaded.")
-            return
+        requires_proof = False
+        if require_proof_methods:
+            try:
+                normalized = {m.strip().lower() for m in require_proof_methods}
+                requires_proof = pay_method.get().strip().lower() in normalized
+            except Exception:
+                requires_proof = False
+        else:
+            requires_proof = pay_method.get().lower().startswith(("gcash", "card", "maya"))
+
+        proof_source = None
+        proof_blob_data = None
+        if requires_proof:
+            proof_source = prompt_proof_upload(grand_total, pay_method.get())
+            if not proof_source:
+                mbox.showinfo("Proof Required", "Checkout cancelled. No proof of payment uploaded.")
+                return
+        else:
+            proceed = mbox.askyesno(
+                "Confirm Payment",
+                f"You selected Cash payment.\n\nConfirm checkout for ₱{grand_total:,.2f}?",
+            )
+            if not proceed:
+                return
 
         try:
             from app.services.shared_state import save_purchase_to_db, clear_cart
 
             total = grand_total
 
-            proof_storage_dir = PROJECT_ROOT / "payment_proofs"
-            proof_storage_dir.mkdir(parents=True, exist_ok=True)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            source_path = Path(proof_source)
-            proof_destination = proof_storage_dir / f"{timestamp}_{source_path.name}"
-            try:
-                shutil.copy2(source_path, proof_destination)
-            except Exception as copy_error:
-                mbox.showerror("Upload Error", f"Failed to copy proof of payment:\n{copy_error}")
-                return
-
             payment_method_value = pay_method.get().lower().split()[0]
-            proof_relative_path = str(proof_destination.relative_to(PROJECT_ROOT))
+            proof_relative_path = None
+
+            if proof_source:
+                proof_storage_dir = PROJECT_ROOT / "payment_proofs"
+                proof_storage_dir.mkdir(parents=True, exist_ok=True)
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                source_path = Path(proof_source)
+                proof_destination = proof_storage_dir / f"{timestamp}_{source_path.name}"
+                try:
+                    with open(proof_source, "rb") as blob_file:
+                        proof_blob_data = blob_file.read()
+                except Exception as blob_exc:
+                    mbox.showerror("Upload Error", f"Failed to read proof of payment:\n{blob_exc}")
+                    return
+
+                try:
+                    shutil.copy2(source_path, proof_destination)
+                except Exception as copy_error:
+                    mbox.showerror("Upload Error", f"Failed to copy proof of payment:\n{copy_error}")
+                    return
+                proof_relative_path = str(proof_destination.relative_to(PROJECT_ROOT))
 
             sale_id = save_purchase_to_db(
                 customer_id=customer_id_value,
@@ -326,12 +358,14 @@ def run_checkout(cart_items, parent=None, add_on_total=0.0, customer_id=None):
                 payment_method=payment_method_value,
                 items=cart_items,
                 proof_of_payment_path=proof_relative_path,
+                proof_of_payment_blob=proof_blob_data,
             )
 
             if sale_id:
                 mbox.showinfo(
                     "Checkout",
-                    f"Order #{sale_id} confirmed!\nPayment: {pay_method.get()}\nTotal: ₱{total:,.2f}\nProof saved to:\n{proof_destination}",
+                    f"Order #{sale_id} confirmed!\nPayment: {pay_method.get()}\nTotal: ₱{total:,.2f}"
+                    + (f"\nProof saved to:\n{proof_destination}" if proof_source else ""),
                 )
                 clear_cart()
                 close_window()

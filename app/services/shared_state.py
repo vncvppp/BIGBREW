@@ -141,7 +141,15 @@ def get_current_customer():
     return _state.get("customer_id")
 
 
-def save_purchase_to_db(customer_id, total_amount, payment_method, items, user_id=None, proof_of_payment_path=None):
+def save_purchase_to_db(
+    customer_id,
+    total_amount,
+    payment_method,
+    items,
+    user_id=None,
+    proof_of_payment_path=None,
+    proof_of_payment_blob=None,
+):
     """Save a purchase to the database.
 
     Ensures an existing `user_id` is provided to satisfy the sales -> users
@@ -325,10 +333,24 @@ def save_purchase_to_db(customer_id, total_amount, payment_method, items, user_i
         # Insert main sale record including user_id to satisfy FK
         cursor.execute(
             """
-            INSERT INTO sales (customer_id, user_id, total_amount, payment_method, proof_of_payment_path)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO sales (
+                customer_id,
+                user_id,
+                total_amount,
+                payment_method,
+                proof_of_payment_path,
+                proof_of_payment_blob
+            )
+            VALUES (%s, %s, %s, %s, %s, %s)
             """,
-            (customer_id, user_id, total_amount, payment_method, proof_of_payment_path),
+            (
+                customer_id,
+                user_id,
+                total_amount,
+                payment_method,
+                proof_of_payment_path,
+                proof_of_payment_blob,
+            ),
         )
         sale_id = cursor.lastrowid
 
